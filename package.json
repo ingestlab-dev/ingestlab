@@ -1,0 +1,86 @@
+{
+  "name": "ingestlab",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Client-side PDF to GFM Markdown with OCR, tables, form fields, and Mermaid.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ingestlab-dev/ingestlab.git"
+  },
+  "main": "src/index.js",
+  "types": "types/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "types"
+  ],
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./widget": {
+      "types": "./types/widget.d.ts",
+      "default": "./src/widget.js"
+    }
+  },
+  "sideEffects": [
+    "./src/widget.js"
+  ],
+  "scripts": {
+    "demo": "node tools/demo-server.mjs",
+    "build": "node tools/build.mjs",
+    "prepack": "npm run build",
+    "test": "node test/node.test.mjs && node test/visuals.test.mjs && node test/corpus-regression.test.mjs && node test/visual-variants.test.mjs",
+    "gen:video": "node test/make_sample_video.mjs",
+    "bundle:size": "node tools/measure-entry.mjs",
+    "types:check": "tsc -p test/tsconfig.json",
+    "test:ocr": "node test/ocr.smoke.mjs",
+    "test:ocr:languages": "node test/ocr-languages.test.mjs",
+    "test:media": "node test/storyboard.test.mjs",
+    "test:media:video": "node test/storyboard-video.test.mjs"
+  },
+  "keywords": [
+    "pdf",
+    "markdown",
+    "webgpu",
+    "webcodecs",
+    "wgsl",
+    "video",
+    "keyframes",
+    "scene-detection",
+    "wasm",
+    "opfs",
+    "web-component",
+    "client-side",
+    "layout-analysis",
+    "tables"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "@napi-rs/canvas": "^1.1.1",
+    "pdfjs-dist": ">=4.0.0 <7",
+    "tesseract.js": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@napi-rs/canvas": {
+      "optional": true
+    },
+    "tesseract.js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^1.1.1",
+    "esbuild": "^0.25.0",
+    "pdfjs-dist": "^6.5.438",
+    "tesseract.js": "^7.0.0",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "markdown-it": "^14.3.3"
+  }
+}

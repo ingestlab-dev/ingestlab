@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IngestLab | PDF, Video &amp; Image</title>
+  <link rel="stylesheet" href="/demo/styles.css">
+  <script type="importmap">
+    {"imports":{"markdown-it":"/vendor/markdown-it.mjs"}}
+  </script>
+  <script type="module" src="/demo/main.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>IngestLab</h1>
+      <p>PDF &middot; Video &middot; &#7842;nh</p>
+    </header>
+    <div class="workspace">
+      <aside aria-label="T&#7879;p PDF m&#7851;u">
+        <h2>PDF m&#7851;u</h2>
+        <button type="button" data-sample="1" disabled>S&#417; &#273;&#7891; &amp; bi&#7875;u &#273;&#7891; 1</button>
+        <button type="button" data-sample="2" disabled>S&#417; &#273;&#7891; &amp; bi&#7875;u &#273;&#7891; 2</button>
+        <button type="button" data-sample="diagram" disabled>S&#417; &#273;&#7891;, b&#7843;ng &amp; c&#244;ng th&#7913;c</button>
+        <button type="button" data-sample="form1040" disabled>Form 1040 (2025)</button>
+        <button type="button" data-sample="lm358" disabled>TI LM358 datasheet</button>
+        <button type="button" data-sample="transformer" disabled>arXiv 1706.03762</button>
+        <button type="button" data-sample="vietnam" disabled>Viet Nam 2025</button>
+      </aside>
+      <section aria-label="Chuy&#7875;n PDF">
+        <div class="toolbar">
+          <p id="file-status" role="status">Ch&#432;a c&#243; t&#7879;p</p>
+          <button type="button" id="download" disabled>T&#7843;i .md</button>
+        </div>
+        <details id="ocr-picker">
+          <summary>Ng&#244;n ng&#7919; OCR <span id="ocr-selection"></span></summary>
+          <div class="ocr-controls">
+            <input type="search" id="ocr-search" aria-label="T&#236;m ng&#244;n ng&#7919; OCR" placeholder="T&#236;m t&#234;n ho&#7863;c m&#227; ng&#244;n ng&#7919;">
+            <button type="button" id="ocr-reset">M&#7863;c &#273;&#7883;nh</button>
+          </div>
+          <div class="ocr-options" id="ocr-options" role="group" aria-label="Ng&#244;n ng&#7919; OCR"></div>
+        </details>
+        <ingest-dropzone split-preview accept=".pdf,.mp4,.webm,.png,.jpeg,.jpg,.gif,.webp" label="Th&#7843; PDF, video ho&#7863;c &#7843;nh v&#224;o &#273;&#226;y"
+          pdfjs-src="/vendor/pdfjs/build/pdf.min.mjs" pdfjs-stdfonts="/vendor/pdfjs/standard_fonts/"
+          ocr-src="/vendor/ocr/tesseract.esm.min.js" ocr-worker-src="/vendor/ocr/worker.min.js"
+          ocr-core-src="/vendor/ocr-core" ocr-images></ingest-dropzone>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
