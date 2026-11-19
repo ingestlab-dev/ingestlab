@@ -12,6 +12,12 @@
 Files are processed locally. The browser may download PDF.js, OCR models, or
 preview libraries separately.
 
+## Documentation
+
+The usage guide covers supported runtimes, API options and results, multilingual
+OCR, form values, PDF assets, video sampling, image output, and the dropzone
+widget. [Read the usage guide](https://github.com/ingestlab-dev/ingestlab/blob/main/docs/usage.md).
+
 ## Quick Start
 
 | Feature | Browser | Node.js |
@@ -53,7 +59,8 @@ Use a browser bundler. The package uses the PDF.js peer dependency; install
 `pdfjs-dist` alongside IngestLab if your package manager does not install peers.
 Set `pdfjs.GlobalWorkerOptions.workerSrc` before passing `{ pdfjs }` to
 `IngestLab.init()` to use a self-hosted worker instead of the CDN default.
-For browser script tags, `dist/widget.js` is a bundled Web Component entry.
+For browser script tags, serve the full `dist/` directory and load
+`dist/widget.js` as a module. The widget imports sibling chunks.
 
 ### Video Keyframes in the Browser
 
