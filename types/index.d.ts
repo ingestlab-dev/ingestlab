@@ -193,12 +193,40 @@ export interface PdfControl {
   options?: { value: string; label: string }[];
 }
 
+export interface PdfSource {
+  /** 1-based PDF page number. */
+  page: number;
+  /** 0-based index in the page's original blocks. */
+  blockIndex: number;
+  /** 0-based index in the original table, including header rows. */
+  rowIndex?: number;
+  /** Original block bounds in top-down page coordinates, when available. */
+  bbox?: { x0: number; y0: number; x1: number; y1: number };
+}
+
+export interface RagChunk {
+  /** Stable source-derived identifier for deduplicating indexed passages. */
+  id: string;
+  text: string;
+  section: string[];
+  /** Search-oriented text with section context and safe abbreviation aliases. */
+  searchText: string;
+  sources: PdfSource[];
+  kind?: 'text' | 'table' | 'instruction';
+  tableRowRange?: { start: number; end: number };
+}
+
+export function rankRagChunks(chunks: RagChunk[], query: string, options?: {
+  limit?: number;
+}): RagChunk[];
+
 export interface IngestResult {
   controls?: PdfControl[];
   richMarkdown?: string;
   formHtml?: string;
   kind: 'pdf' | 'video' | 'image';
   markdown?: string;
+  ragChunks?: RagChunk[];
   assets?: PdfAsset[];
   keyframes?: Keyframe[];
   pages?: number;
@@ -288,6 +316,8 @@ export interface ProgressEvent {
 }
 
 export interface ParseOpts {
+  /** Use rag to emit retrieval chunks with section headings and PDF source references. Default: faithful. */
+  markdownProfile?: 'faithful' | 'rag';
   /** Rebuild detected vector figures as standalone SVG assets in Node. */
   vectorFigures?: boolean;
   /** Omit raster region assets; independent of preservePages. */
@@ -355,6 +385,7 @@ export interface ParseResult {
   richMarkdown?: string;
   formHtml?: string;
   markdown: string;
+  ragChunks?: RagChunk[];
   blocks: Block[];
   /** Detected vector figure regions; heuristic metadata, not a pixel-preservation guarantee. */
   figures: DetectedFigure[];
@@ -480,6 +511,8 @@ export interface IngestDropzoneElement extends HTMLElement {
 export interface IngestDropzoneProps {
   label?: string;
   accept?: string;
+  /** PDF Markdown output profile used by the browser widget. */
+  markdownProfile?: 'faithful' | 'rag';
   sceneThreshold?: number;
   maxKeyframes?: number;
   pdfjsSrc?: string;

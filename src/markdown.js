@@ -24,8 +24,13 @@ function emitVisualContent(content) {
   return result;
 }
 
+const normalizeCell = (s) => String(s ?? '')
+    .replace(/(?:\s*\.\s*){4,}$/u, '')
+    .replace(/[ \t]{2,}/gu, ' ')
+    .trim();
+
 const escapeCell = (s) =>
-  String(s ?? '')
+  normalizeCell(s)
     .replace(/☐/g, '[ ]')
     .replace(/[☑☒]/g, '[x]')
     .replace(/○/g, '( )')
@@ -257,6 +262,7 @@ export function emitBlocks(blocks, tableRenderer = emitTable) {
         break;
       case 'table':
         parts.push(tableRenderer(b.rows, b));
+        for (const note of b.notes || []) parts.push(emitInstruction(note));
         break;
       case 'figure': {
         if (b.caption) {
@@ -269,6 +275,7 @@ export function emitBlocks(blocks, tableRenderer = emitTable) {
         if (!b.assetPath && !b.vectorPath && !b.sourceCaption && !b.mermaid && !b.tableMd && !b.visualContent)
           parts.push(`> [Image: ${label}]`);
         if (b.sourceCaption) parts.push(`> ${inlineChecks(b.sourceCaption)}`);
+        if (b.extraLabels?.length) parts.push(`> ${inlineChecks(b.extraLabels.join(' '))}`);
         if (b.vectorPath) parts.push(`![Vector reconstruction: ${escapeVisualText(b.sourceCaption || label)}](${b.vectorPath})`);
         if (b.reconstruction === 'circuit-partial')
           parts.push('> Partial schematic: traced connections only. Other components and connections may be missing.');
@@ -321,6 +328,22 @@ export function emitBlocks(blocks, tableRenderer = emitTable) {
       case 'aside':
         parts.push('> ' + inlineChecks(b.text));
         break;
+      case 'instruction':
+        parts.push(emitInstruction(b));
+        break;
+      case 'field': {
+        const separator = /[.!?:;]$/.test(b.label) ? '' : ':';
+        const label = inlineChecks(escapeVisualText(b.label));
+        const value = escapeVisualText(b.value);
+        parts.push(label ? `**${label}${separator}** ${value}`.trimEnd() : value);
+        break;
+      }
+      case 'form_choice': {
+        const checks = b.text.split(CHECK_SPLIT);
+        const text = inlineChecks(b.text);
+        parts.push(checks.length === 3 && !checks[0] && checks[2].trim() && /^\[[ x]\]/.test(text) ? '- ' + text : text);
+        break;
+      }
       case 'form_grid':
         parts.push(emitFormGrid(b));
         break;
@@ -353,6 +376,12 @@ export function emitBlocks(blocks, tableRenderer = emitTable) {
     }
   }
   return parts.filter((p) => p && p.trim()).join('\n\n');
+}
+
+function emitInstruction({ text, line }) {
+  const quote = inlineChecks(text).split('\n').map((part) => '> ' + part);
+  if (line) quote.unshift(`> **Line ${line}**`, '>');
+  return quote.join('\n');
 }
 
 function bytesToBase64(bytes) {

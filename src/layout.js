@@ -238,6 +238,63 @@ function proseGutter(lines, width) {
   return null;
 }
 
+function splitColumnBaselines(lines) {
+  const gaps = [];
+  for (const line of lines) {
+    for (let i = 1; i < line.words.length; i++) {
+      const left = line.words[i - 1];
+      const right = line.words[i];
+      const gap = right.x0 - left.x1;
+      if (gap >= Math.max(2.1 * line.size, 8))
+        gaps.push({ mid: (left.x1 + right.x0) / 2, y: line.y });
+    }
+  }
+  const stableCuts = cluster1d(gaps, (gap) => gap.mid, 8)
+    .filter(({ items }) => new Set(items.map(({ y }) => Math.round(y))).size >= 3)
+    .map(({ key }) => key);
+  const split = (line) => {
+    const cuts = [];
+    for (let i = 1; i < line.words.length; i++) {
+      const left = line.words[i - 1];
+      const right = line.words[i];
+      const gap = right.x0 - left.x1;
+      const mid = (left.x1 + right.x0) / 2;
+      const repeated = stableCuts.some((cut) => Math.abs(cut - mid) <= 9);
+      if (gap >= Math.max(8 * line.size, 36) || (repeated && gap >= Math.max(2.1 * line.size, 8))) cuts.push(i);
+    }
+    if (!cuts.length) return [line];
+    const parts = [];
+    let start = 0;
+    for (const end of [...cuts, line.words.length]) {
+      const words = line.words.slice(start, end);
+      if (words.length) {
+        const part = { ...line, words, x0: words[0].x0, x1: Math.max(...words.map((w) => w.x1)),
+          y: mean(words.map((w) => w.y)), size: Math.max(...words.map((w) => w.size)),
+          mono: words.every((w) => w.mono) };
+        part.text = joinLineText(part);
+        parts.push(part);
+      }
+      start = end;
+    }
+    return parts;
+  };
+  return lines.flatMap(split);
+}
+
+function looksLikeBorderlessRows(lines) {
+  const numeric = lines.filter((line) => line.words.length >= 3 &&
+    line.words.filter((word) => /\d|%/u.test(word.str)).length >= 2);
+  if (numeric.length < 3) return false;
+  const starts = numeric.map((line) => line.x0).sort((a, b) => a - b);
+  const middle = starts[Math.floor(starts.length / 2)];
+  const aligned = numeric.filter((line) => Math.abs(line.x0 - middle) <= 4).sort((a, b) => a.y - b.y);
+  if (aligned.length < 3) return false;
+  const gaps = aligned.slice(1).map((line, i) => line.y - aligned[i].y).filter((gap) => gap > 0).sort((a, b) => a - b);
+  const medianGap = gaps[Math.floor(gaps.length / 2)] || 1;
+  return aligned.some((line, i) => aligned.slice(i, i + 3).length === 3 &&
+    aligned[i + 2].y - line.y <= 3.2 * medianGap);
+}
+
 function tablePanels(tables, width) {
   const candidates = tables.filter(({ bbox: b, rows }) =>
     rows.length >= 3 && b.x1 - b.x0 >= 0.18 * width && b.x1 - b.x0 <= 0.51 * width);
@@ -454,11 +511,24 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
   const panels = (pageCtx.figures || []).filter((f) => f.bbox.sourcePanel);
   const captionedFigures = (pageCtx.figures || []).filter((f) => f.bbox.sourcePanel || f.bbox.circuit);
   const inPanel = (l) => panels.some(({ bbox: p }) => l.x0 >= p.x0 - 2 && l.x1 <= p.x1 + 2 && l.y >= p.y0 && l.y <= p.y1 + 2);
-  const mainLines = pageCtx.lines.filter((l) => !inPanel(l)).flatMap((l) => {
-    const rest = l.words.filter((w) => !lookupWords.has(w));
-    return rest.length === l.words.length ? [l] : groupLines(rest, segments.v, width);
+  const inPanelWord = (w) => panels.some(({ bbox: p }) => {
+    const x = (w.x0 + w.x1) / 2;
+    return x >= p.x0 - 2 && x <= p.x1 + 2 && w.y >= p.y0 - 2 && w.y <= p.y1 + 2;
   });
-  let pageLines = formPage ? mergeStackedRail(mainLines, width) : mainLines;
+  const adjacentPanelWord = (w) => panels.some(({ bbox: p }) => {
+    const x = (w.x0 + w.x1) / 2;
+    return x >= p.x0 - 2 && x <= p.x1 + 2 && w.y > p.y1 &&
+      w.y <= p.y1 + 2.2 * w.size && /^[\p{L}\p{N}+./-]{2,24}$/u.test(w.str.trim());
+  });
+  const mainLines = pageCtx.lines.flatMap((l) => {
+    const rest = l.words.filter((w) => !lookupWords.has(w) && !inPanelWord(w) && !adjacentPanelWord(w));
+    if (!rest.length) return [];
+    if (rest.length === l.words.length && !inPanel(l)) return [l];
+    return groupLines(rest, segments.v, width);
+  });
+  let pageLines = formPage || (!panels.length && looksLikeBorderlessRows(mainLines))
+    ? (formPage ? mergeStackedRail(mainLines, width) : mainLines)
+    : splitColumnBaselines(mainLines);
   // Scans need a wider tolerance for fragmented rules.
   const segTol = pageCtx.fills?.length || pageCtx.curves?.length || pageCtx.primitives?.length ? 4 : 14;
   let ruled;
@@ -541,6 +611,22 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
 
   // Place figures without claiming their labels or axis ticks.
   const figs = (pageCtx.figures || []).slice().sort((a, b) => a.bbox.y0 - b.bbox.y0 || a.bbox.x0 - b.bbox.x0);
+  for (const { bbox } of panels) {
+    const figure = figs.find((candidate) => candidate.bbox === bbox);
+    const known = new Set((bbox.labels || []).map((word) => word));
+    const extraLabels = words.filter((word) => {
+      const x = (word.x0 + word.x1) / 2;
+      return !known.has(word) && x >= bbox.x0 - 2 && x <= bbox.x1 + 2 &&
+        word.y > bbox.y1 && word.y <= bbox.y1 + 2.2 * word.size && /^[\p{L}\p{N}+./-]{2,24}$/u.test(word.str.trim());
+    });
+    if (figure && extraLabels.length) figure.extraLabels = extraLabels.map(({ str }) => str.trim());
+    for (const word of words) {
+      const x = (word.x0 + word.x1) / 2;
+      if (x >= bbox.x0 - 2 && x <= bbox.x1 + 2 && word.y >= bbox.y0 - 2 && word.y <= bbox.y1 + 2)
+        emittedWords?.add(word);
+    }
+    for (const word of extraLabels) emittedWords?.add(word);
+  }
 
   const imgNotes = [];
   for (const im of pageCtx.images || []) {
@@ -596,9 +682,14 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
     ...captionMarkers,
   ];
   const layoutLines = [...contentLines, ...visualMarkers];
+  const minX = Math.min(...contentLines.map((line) => line.x0).filter(Number.isFinite));
+  const alignedLines = contentLines.filter((line) => Math.abs(line.x0 - minX) <= 4).length;
+  const numericLines = contentLines.filter((line) => line.words.filter((word) => /\d/.test(word.str)).length >= 2).length;
+  const hasBorderless = detectBorderless && !positionedTables.length &&
+    alignedLines >= 8 && numericLines >= 4;
   const ordered = panelsForOrder
     ? orderTablePanels(layoutLines.map((line) => consumedMap.has(line) || formMap.has(line) ? { ...line, _owned: line } : line), panelsForOrder, scale)
-    : columnOrder(layoutLines, width, height, consumedMap, formMap, !formPage);
+    : hasBorderless ? null : columnOrder(layoutLines, width, height, consumedMap, formMap, !formPage);
   const lines = ordered || layoutLines.sort((a, b) => a.y - b.y || a.x0 - b.x0);
   const lookupOrder = [...lookupTables].sort((a, b) => a.bbox.y0 - b.bbox.y0);
   for (let i = 0; i < lookupOrder.length;) {
@@ -688,6 +779,7 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
         l.text !== fig.bbox.caption).map((l) => l.text).join('\n') : undefined,
       omitSourceText: Boolean(fig.bbox.axisBars || fig.bbox.standaloneFlow),
       sourceCaption: fig.bbox.caption,
+      extraLabels: fig.extraLabels,
       bboxW: w,
       bboxH: h,
     });
@@ -700,7 +792,9 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
     const sectionLead = /^[\p{L}]+\s+\d+(?:\.\d+)*\s*\([^)]{1,40}\):\s+\p{L}/u.test(run[0].text);
     const bt = detectBorderless && !sectionLead ? findBorderlessTable(run) : null;
     if (bt) {
-      blocks.push({ type: 'table', kind: 'borderless', rows: bt.rows, prov: 'plumberGrid' });
+      const tables = bt.tables || [bt];
+      for (const table of tables)
+        blocks.push({ type: 'table', kind: 'borderless', rows: table.rows, prov: 'plumberGrid' });
       return;
     }
     const seq = [];
@@ -960,6 +1054,7 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
 
     const lvl = scale.headingLevels.get(snap(line.size));
     const plausible = headingPlausible(line.text) && (!formPage || headingPlausibleForm(line.text));
+    const tableAnchorLine = /^[A-Z]+\d{3,}[A-Z]+\s+(?:items|reading|\$)\b/i.test(line.text.trim());
     const railLabel =
       formPage &&
       line.x0 < 0.12 * width &&
@@ -970,7 +1065,7 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
       line.words.length <= 3 &&
       line.text.length <= 24;
     const displayType = lvl === 1 && snap(line.size) >= 2.6 * scale.body;
-    if (lvl && !headingJunk(line.text) && line.words.length <= 18 && line.text.length <= 100 && (displayType || plausible || railLabel)) {
+    if (lvl && !tableAnchorLine && !headingJunk(line.text) && line.words.length <= 18 && line.text.length <= 100 && (displayType || plausible || railLabel)) {
       flushPending();
       flushList();
       flushCode();
@@ -981,12 +1076,13 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
         last.type === 'heading' &&
         last.level === lvl &&
         !headingJunk(mergedText) &&
+        Math.abs(line.x0 - (last.x0 ?? line.x0)) <= 3 * line.size &&
         Math.abs(line.y - (last._y || 0)) <= 2.4 * line.size
       ) {
         last.text = mergedText.slice(0, 160);
         last._y = line.y;
       } else {
-        blocks.push({ type: 'heading', level: lvl, text: line.text, prov: 'geometricFallback', _y: line.y });
+        blocks.push({ type: 'heading', level: lvl, text: line.text, prov: 'geometricFallback', x0: line.x0, x1: line.x1, _y: line.y });
       }
       continue;
     }

@@ -69,6 +69,7 @@ for the full result.
 | `markdown` | GFM with text, tables, and supported Mermaid or LaTeX blocks |
 | `pages` and `blocks` | Blocks grouped by page and a flat list. Table blocks expose `rows` and may include `spans`. |
 | `controls` | Detected widgets with a page, label, type, value or checked state, and source |
+| `ragChunks` | Retrieval passages with section headings and PDF source references when `markdownProfile: 'rag'` is set |
 | `richMarkdown` and `formHtml` | Optional output enabled by `semanticHtml: true`. HTML tables can carry `rowspan` and `colspan`. |
 | `assets` and `figures` | Exported images and detected figure metadata |
 | `stats` | Counts for pages, tables, forms, OCR, and visual recovery |
@@ -78,6 +79,7 @@ for the full result.
 | `dropHeadersFooters` | Defaults to `true`. Set it to `false` to keep repeating page text. |
 | `dropArtifacts` | Set to `true` to skip text tagged as a PDF artifact. Defaults to `false`. |
 | `detectBorderlessTables` | Defaults to `true`. Set it to `false` to disable the borderless table heuristic. |
+| `markdownProfile` | Defaults to `'faithful'`. Use `'rag'` for retrieval chunks and reformatted tagged forms. |
 | `figures` and `maxFigures` | Enable figure reconstruction and cap the number processed. Reconstruction is enabled by default. |
 | `cache` | Set to `false` to bypass cached conversion results. |
 | `docOpts` | PDF.js document options such as `standardFontDataUrl` and `cMapUrl`. |
@@ -85,6 +87,62 @@ for the full result.
 Check `stats.scannedUnread`, `stats.ocrFailed`, and `stats.imageOcrFailed`
 when you need to identify incomplete recognition. Check reconstructed figure
 data against the source before using it for calculations.
+
+### Retrieval and question answering
+
+Both profiles use the same PDF internals, OCR, reading-order, table, form,
+and figure pipeline. The default `faithful` profile also joins layout-split
+paragraphs and removes repeated print leaders inside table cells while keeping
+the page-level Markdown structure. The `rag` profile adds semantic form
+rewrites, section context, overlapping table windows, stable chunk IDs, and
+source metadata.
+
+When indexing faithful output with toRagChunks, each table passage keeps its
+exact Markdown in text and receives a small neighboring-row searchText window.
+This lets a retriever match questions whose evidence spans adjacent form rows
+without changing the faithful document shown to users.
+
+Pass `markdownProfile: 'rag'` to either `parse()` or `ingest()`. Index the
+section path with each chunk and store the source references as metadata.
+
+```js
+const { ragChunks } = await lab.parse(bytes, { markdownProfile: 'rag' });
+const passages = ragChunks.map(({ section, text, searchText, sources }) => ({
+  text: searchText || [...section, text].join('\n\n'),
+  sources,
+}));
+
+// Optional deterministic baseline ranker for a local keyword retriever.
+import { rankRagChunks } from 'ingestlab';
+const topPassages = rankRagChunks(ragChunks, 'What is the total amount?', { limit: 8 });
+```
+
+Each chunk has a stable source-derived `id` and `searchText` for indexing. `rankRagChunks(chunks, query)` provides a deterministic local BM25 baseline with phrase, section, and table-value boosts. Each source has a 1-based `page` and a 0-based `blockIndex` in
+`parse().pages[page - 1]`. Table references can also have a 0-based
+`rowIndex` that counts header rows. A source can include its original
+block bounds in top-down page coordinates. A passage can have several
+references when it joins text across pages or associates table rows and notes.
+
+For tagged forms, the RAG profile separates instructions from fields,
+groups nearby checkbox options, and trims spaced print leaders from form
+descriptions. On Form 1040, the standard deduction callout is included with
+line 12e, and line 12a retains both checkbox states. Notes without enough
+evidence for a row link stay in the section. For geometric tables, the
+profile preserves the table in Markdown and repeats headers and vertical
+span context in retrieval chunks. OCR and column ordering still depend on
+the underlying extraction, and long single blocks can need further splitting
+for an embedding model.
+
+Chunk IDs are deterministic for a parsed document. Keep them as the
+deduplication key when overlapping table windows are indexed. The repository
+also includes 50 public PDFs and 120 generated layout fixtures covering scan
+rotation, margin stamps, borderless or partial-rule tables, nested tables and panels,
+continued tables, multi-column pages, reversed drawing order, and fillable
+widgets.
+
+```sh
+INGESTLAB_TESSDATA_DIR=/path/to/tessdata npm run test:rag:corpus
+```
 
 ## OCR and language models
 

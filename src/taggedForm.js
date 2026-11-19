@@ -8,7 +8,7 @@ const normalize = (s) => stripLeaders(s.replace(/\s+/gu, ' ').trim());
 const fieldText = (f) => checkbox(f) ? (f.isChecked ? '\u2611' : '\u2610') :
   (Array.isArray(f.fieldValue) ? f.fieldValue.join(', ') : String(f.fieldValue ?? '')).trim();
 
-function formTables(blocks) {
+function formTables(blocks, includeRowInfo) {
   const out = [];
   for (let i = 0; i < blocks.length;) {
     if (blocks[i].type !== 'form_line') {
@@ -30,12 +30,15 @@ function formTables(blocks) {
       const match = text.match(/^(\d{1,2}[a-z]?|[a-z])\s+(.+)$/);
       return match ? [match[1], match[2], value] : ['', text, value];
     });
-    out.push({ type: 'table', kind: 'ruled', tagged: true, form: true, rows: [header, ...rows] });
+    const table = { type: 'table', kind: 'ruled', tagged: true, form: true, rows: [header, ...rows] };
+    if (includeRowInfo) table.formRows = [null, ...lines.map(({ hasField, hasValueField, x, y }) =>
+      ({ hasField, hasValueField, x, y }))];
+    out.push(table);
   }
   return out;
 }
 
-export async function readTaggedForm(page, data, { dropArtifacts = false } = {}) {
+export async function readTaggedForm(page, data, { dropArtifacts = false, includeRowInfo = false } = {}) {
   const fields = new Map(data.annotations.filter((a) => a.id && a.controlType && a.controlType !== 'button')
     .map((a) => ['pdfjs_internal_id_' + a.id, a]));
   if (fields.size < 2 || typeof page.getStructTree !== 'function') return null;
@@ -133,7 +136,10 @@ export async function readTaggedForm(page, data, { dropArtifacts = false } = {})
       if (text.startsWith('\u2022 ')) text = '- ' + text.slice(2);
       const value = row.slice(split).map((p) => p.text).join(' ');
       const hasValueField = split < row.length;
-      if (text || hasValueField) blocks.push({ type: 'form_line', text, value, hasValueField, hasField: row.some((p) => p.f) });
+      if (text || hasValueField) {
+        const { x, y } = row[0];
+        blocks.push({ type: 'form_line', text, value, hasValueField, hasField: row.some((p) => p.f), x, y });
+      }
     }
     row = [];
   };
@@ -198,5 +204,5 @@ export async function readTaggedForm(page, data, { dropArtifacts = false } = {})
     return null;
   }
   ordered.forEach((f, i) => { f.taggedOrder = i; });
-  return formTables(blocks);
+  return formTables(blocks, includeRowInfo);
 }

@@ -28,6 +28,8 @@ nav a { color: #11624d; margin-right: 12px; }
 .toolbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .toolbar p { margin: 0; overflow-wrap: anywhere; }
 #download { flex: none; }
+.markdown-profile { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.markdown-profile select { font: inherit; color: inherit; background: white; border: 1px solid #bfd0ca; border-radius: 6px; padding: 5px 8px; min-height: 36px; }
 .drawing-mode { display: flex; align-items: center; gap: 8px; width: fit-content; min-height: 36px; margin-bottom: 6px; cursor: pointer; }
 .drawing-mode input { margin: 0; accent-color: #176951; }
 #ocr-picker { border: 1px solid #bfd0ca; border-radius: 6px; margin: 0 0 10px; background: white; }

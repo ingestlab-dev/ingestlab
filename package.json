@@ -31,14 +31,17 @@
     "demo": "node tools/demo-server.mjs",
     "build": "node tools/build.mjs",
     "prepack": "npm run build",
-    "test": "node test/node.test.mjs && node test/visuals.test.mjs && node test/corpus-regression.test.mjs && node test/visual-variants.test.mjs && node test/pdf-layout.test.mjs",
+    "test": "node test/node.test.mjs && node test/visuals.test.mjs && node test/corpus-regression.test.mjs && node test/visual-variants.test.mjs && node test/pdf-layout.test.mjs && node test/rag-profile.test.mjs",
     "gen:video": "node test/make_sample_video.mjs",
     "bundle:size": "node tools/measure-entry.mjs",
     "types:check": "tsc -p test/tsconfig.json",
     "test:ocr": "node test/ocr.smoke.mjs",
     "test:ocr:languages": "node test/ocr-languages.test.mjs",
     "test:media": "node test/storyboard.test.mjs",
-    "test:media:video": "node test/storyboard-video.test.mjs"
+    "test:media:video": "node test/storyboard-video.test.mjs",
+    "test:rag:corpus": "node tools/audit-rag-corpus.mjs ../pdf/corpus-150",
+    "benchmark:rag": "node tools/benchmark-rag.mjs ../pdf",
+    "benchmark:rag:corpus": "node tools/benchmark-rag-corpus.mjs ../pdf/corpus-150"
   },
   "keywords": [
     "pdf",

@@ -912,8 +912,29 @@ function detectSemiRuledInComponent(words, comp, pageW, pageH, tables) {
 const BULLET_RE = /^\s*([-–—*•▪◦●·‣⁃]\s+)/;
 const ORDERED_RE = /^\s*(\d{1,2}|[a-zA-Z])[.)]\s+/;
 
-export function findBorderlessTable(lines) {
+export function findBorderlessTable(lines, options = {}) {
   if (lines.length < 3) return null;
+  if (!options.windowed && lines.length > 8) {
+    const size = mean(lines.map((line) => line.size));
+    const gaps = lines.slice(1).map((line, index) => line.y - lines[index].y).filter((gap) => gap > 0).sort((a, b) => a - b);
+    const medianGap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : size;
+    const splitGap = Math.max(4.5 * size, 1.8 * medianGap);
+    const runs = [];
+    let run = [];
+    for (const line of lines) {
+      if (run.length && line.y - run.at(-1).y > splitGap) {
+        runs.push(run);
+        run = [];
+      }
+      run.push(line);
+    }
+    if (run.length) runs.push(run);
+    const matches = runs.map((candidateLines) => findBorderlessTable(candidateLines, { windowed: true })).filter(Boolean);
+    if (matches.length) {
+      const rows = matches.flatMap((table, index) => index ? table.rows.slice(1) : table.rows);
+      return { ...matches[0], rows, tables: matches };
+    }
+  }
   const size = mean(lines.map((l) => l.size));
 
   const tryClusters = (mode, coverage) => {
@@ -926,7 +947,7 @@ export function findBorderlessTable(lines) {
   };
 
   // Require consistent word starts to avoid treating justified prose as a table.
-  let clusters = tryClusters('start', 1.0);
+  let clusters = tryClusters('start', options.windowed ? 0.8 : 1.0);
   let mode = 'start';
   if (clusters.length < 3 || clusters.length > 10) {
     // Financial tables often align numbers by their right edge.
@@ -1019,6 +1040,16 @@ export function findBorderlessTable(lines) {
   const cellsTotal = rows.length * bounds.length;
   const cellsFilled = rows.flat().filter((c) => c.trim()).length;
   if (cellsFilled / cellsTotal < 0.5) return null;
+  // Borderless forms often split an identifier and its wrapped label across
+  // two inferred columns. Keep that label in one cell before Markdown output.
+  for (let rowIndex = 2; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex];
+    const first = row.findIndex((cell) => cell.trim());
+    const numeric = row.findIndex((cell, index) => index > first && /^[()$\d.,/%+\-×:]+$/.test(cell.trim()));
+    if (first < 0 || numeric <= first + 1 || !/^[A-Z]+\d{3,}[A-Z]+\d+/u.test(row[first].trim())) continue;
+    row[first] = row.slice(first, numeric).filter(Boolean).join(' ');
+    for (let index = first + 1; index < numeric; index++) row[index] = '';
+  }
   const filled = rows.flat().filter((c) => c.trim());
   if (filled.length) {
     const meanWords = mean(filled.map((c) => c.trim().split(/\s+/).length));

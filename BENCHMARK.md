@@ -36,6 +36,44 @@ bounds, so OCR typos count toward cell accuracy independently of order.
 The public corpus run verifies conversion and page coverage. Selected
 real forms have separate content and order assertions in the test suite.
 
+### RAG corpus audit
+
+The RAG audit covers all 150 documents instead of only the original 18
+fixtures. It checks every emitted chunk, every page and block reference,
+chunk ID uniqueness, and every synthetic table anchor against its ground
+truth. Scan fixtures use the local `eng.traineddata` model when
+`INGESTLAB_TESSDATA_DIR` is set.
+
+| Check | Result |
+| --- | ---: |
+| Documents and pages | 150 files, 1,018 pages |
+| Extracted tables | 1,246 |
+| RAG chunks | 24,815 |
+| Valid source references | 34,377 / 34,377 |
+| Unique chunk IDs | 24,815 / 24,815 |
+| Synthetic table anchor recall | 290 / 290 |
+| Scan table cells | 415 / 480 |
+
+The remaining scan-cell misses are OCR recognition errors in the deliberately
+rotated, margin-stamped raster fixtures. Table boundaries, order, spans and
+all 20 scan table anchors remain detected.
+
+```sh
+INGESTLAB_TESSDATA_DIR=/path/to/tessdata npm run test:rag:corpus
+npm run benchmark:rag:corpus
+```
+
+The synthetic-vector retrieval probe uses 270 ground-truth table queries.
+All five retrieval measures are 100% for the current RAG chunks.
+
+| Profile | Evidence coverage | Recall@1 | Recall@5 | MRR | Source accuracy@1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `faithful` | 100% | 100% | 100% | 1.000 | 100% |
+| `rag` | 100% | 100% | 100% | 1.000 | 100% |
+
+This probe tests exact table anchors and cell labels. The 15-query natural
+language benchmark below measures harder cross-domain questions.
+
 ```sh
 node tools/fetch-pdf-corpus.mjs
 python3 tools/make-pdf-corpus.py
@@ -59,6 +97,7 @@ continuations, and equation structure.
 | [USCIS I-9](https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf) | All four citizenship widgets stay unchecked, and the first section heading remains intact. |
 | [IRS 941](https://www.irs.gov/pub/irs-pdf/f941.pdf) | The wages label stays on line 2. |
 | [CFPB Closing Disclosure](https://files.consumerfinance.gov/f/201311_cfpb_kbyo_closing-disclosure.pdf) | Printed marks stay with the Conventional and Property Taxes options. FHA remains unchecked. |
+| Local LM358 datasheet | Page 1 separates the Description and Pin Assignments columns, keeps the SOP-8L package label with the pinout, and drops a prose region misclassified as a schematic. |
 | Local Transformer paper | Figure 2 keeps both caption lines. Equation 1 preserves the fraction, exponent, radical, and subscript. |
 | Local Vietnamese Land Law scan | Page 2 yields 589 OCR tokens after cropping the separated margin imprint (187 before). The 222 spurious prose tables from the first pass are gone. |
 
@@ -160,3 +199,54 @@ npm run test:ocr
 Use the `eng.traineddata` and `vie.traineddata` fixture files or set
 `TESSDATA_PREFIX` to their installed directory. The Python benchmark tooling
 is not a runtime dependency and is not included in the npm package.
+
+## Extended corpus and retrieval benchmark
+
+The extended fixture set at `../pdf/corpus-170` adds 20 generated PDFs for
+borderless and nested tables. Its audit covers 50 public documents and 120
+generated documents.
+
+| Check | Result |
+| --- | ---: |
+| Documents and pages | 170 files, 1,038 pages |
+| Extracted tables | 1,286 |
+| RAG chunks | 24,935 |
+| Valid source references | 34,841 / 34,841 |
+| Unique chunk IDs | 24,935 / 24,935 |
+| Synthetic table anchor recall | 330 / 330 |
+
+```sh
+INGESTLAB_TESSDATA_DIR=/path/to/tessdata node tools/audit-rag-corpus.mjs ../pdf/corpus-170
+node tools/benchmark-rag-corpus.mjs ../pdf/corpus-170
+```
+
+`rankRagChunks` is exported as a deterministic local baseline. It ignores
+question stop words, expands common document-language synonyms, boosts section
+and product identities, and keeps numeric answers near their parameter labels.
+
+## Retrieval benchmark
+
+15 hand-labeled English queries over the official Form 1040, the untagged
+1040 test fixture, the TI LM358 datasheet, and *Attention Is All You Need*.
+Both profiles use the same section paths and base
+passage extraction. A hit requires the expected document and page and
+all labeled evidence inside one passage. OCR and figure reconstruction
+were disabled for both runs.
+
+| Profile | Evidence coverage | Recall@1 | Recall@5 | MRR | Source accuracy@1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `faithful` | 100.0% | 93.3% | 100.0% | 0.967 | 93.3% |
+| `rag` | 100.0% | 93.3% | 100.0% | 0.956 | 93.3% |
+
+Evidence coverage counts queries with a complete passage anywhere in the
+index. Source accuracy checks the document and page of the top result.
+Both profiles use local table-context search text, safe abbreviation aliases,
+section-aware ranking, numeric-answer boosts, and stable source-derived chunk
+IDs. The faithful profile keeps the original Markdown passage as text;
+context is indexing metadata only. Duplicate fixtures can legitimately tie
+on identical evidence, so top-result source accuracy remains below evidence
+coverage for two queries.
+
+```sh
+INGESTLAB_PDF_DIR=/path/to/pdf node tools/benchmark-rag.mjs
+```

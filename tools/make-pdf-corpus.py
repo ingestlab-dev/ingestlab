@@ -27,7 +27,7 @@ DOMAINS = {
 VARIANTS = (
     "merged-headers", "variable-row-dividers", "two-column-panels", "three-column-panels",
     "partial-rules", "reverse-stream", "landscape", "fillable-widgets",
-    "continued-table", "scan-with-margin",
+    "continued-table", "scan-with-margin", "borderless-table", "nested-table",
 )
 BLUE = HexColor("#13354c")
 SHADE = HexColor("#e6eff3")
@@ -59,17 +59,18 @@ def table(pdf, x, y, width, labels, key, variant, unit, rng, controls):
     pdf.rect(x, ys[2], width, y - ys[2], fill=1, stroke=0)
     pdf.setStrokeColor(LINE)
     pdf.setLineWidth(.55)
-    for r, boundary in enumerate(ys):
-        if variant == "partial-rules" and r == 4:
-            pdf.line(x + cols[1], boundary, x + width, boundary)
-        else:
-            pdf.line(x, boundary, x + width, boundary)
-    for c, shift in enumerate(cols):
-        if c in (0, 4):
-            pdf.line(x + shift, y, x + shift, ys[-1])
-        else:
-            pdf.line(x + shift, ys[0] if c == 3 else ys[1], x + shift,
-                     ys[2] if variant == "partial-rules" else ys[-1])
+    if variant != "borderless-table":
+        for r, boundary in enumerate(ys):
+            if variant == "partial-rules" and r == 4:
+                pdf.line(x + cols[1], boundary, x + width, boundary)
+            else:
+                pdf.line(x, boundary, x + width, boundary)
+        for c, shift in enumerate(cols):
+            if c in (0, 4):
+                pdf.line(x + shift, y, x + shift, ys[-1])
+            else:
+                pdf.line(x + shift, ys[0] if c == 3 else ys[1], x + shift,
+                         ys[2] if variant == "partial-rules" else ys[-1])
 
     for r, row in enumerate(page_rows):
         for c, value in enumerate(row):
@@ -94,6 +95,19 @@ def table(pdf, x, y, width, labels, key, variant, unit, rng, controls):
             for line in simpleSplit(part, "Helvetica-Bold" if bold else "Helvetica", size, cell_width):
                 text(pdf, line, xx, baseline, size, bold)
                 baseline -= size + 1
+    if variant == "nested-table":
+        inner_x = x + cols[1] + 4
+        inner_y = ys[3] - 5
+        inner_w = max(42, cols[2] - cols[1] - 10)
+        pdf.setStrokeColor(LINE)
+        pdf.setLineWidth(.4)
+        pdf.rect(inner_x, inner_y - 22, inner_w, 22, fill=0, stroke=1)
+        pdf.line(inner_x + inner_w * .5, inner_y, inner_x + inner_w * .5, inner_y - 22)
+        pdf.line(inner_x, inner_y - 11, inner_x + inner_w, inner_y - 11)
+        text(pdf, "Sub", inner_x + 3, inner_y - 8, 5, True)
+        text(pdf, "Value", inner_x + inner_w * .5 + 3, inner_y - 8, 5, True)
+        text(pdf, "A", inner_x + 3, inner_y - 19, 5)
+        text(pdf, "1", inner_x + inner_w * .5 + 3, inner_y - 19, 5)
     spans = [{"r": 0, "c": 0, "rowspan": 1, "colspan": 3}]
     if variant == "partial-rules":
         page_rows[3][0] += " " + page_rows[4][0]

@@ -13,6 +13,8 @@ const sameBounds = (a, b) => a && b &&
 const matchesTable = (table, target, scan) => table.rows.slice(0, 2)
   .some((row) => row.some((cell) => norm(cell).split(' ').includes(target.anchor))) ||
   (scan && sameBounds(table.bbox, target.bbox));
+const ocrRuntime = process.env.INGESTLAB_TESSDATA_DIR
+  ? { langPath: process.env.INGESTLAB_TESSDATA_DIR, gzip: false } : undefined;
 const lab = await IngestLab.init();
 const results = [];
 
@@ -24,6 +26,7 @@ for (const fixture of fixtures) {
     ocr: scan,
     ocrLangs: 'eng',
     ocrImages: false,
+    ocrRuntime,
   });
   if (markdownDir) await writeFile(join(markdownDir, fixture.file.replace(/\.pdf$/, '.md')), result.markdown);
   const checks = { cells: 0, cellsMatched: 0, spans: 0, spansMatched: 0,

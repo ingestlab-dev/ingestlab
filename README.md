@@ -3,7 +3,8 @@
 [![npm version](https://img.shields.io/npm/v/ingestlab)](https://www.npmjs.com/package/ingestlab)
 [![MIT license](https://img.shields.io/github/license/ingestlab-dev/ingestlab)](LICENSE)
 
-**PDF to Markdown, video keyframes, and image optimization. No conversion server.**
+**100% client-side, zero-server PDF-to-GFM Markdown engine with video keyframes
+and image optimization.**
 
 - **[PDF to GFM Markdown](#pdf-internals-first):** Extract text, tables, form fields, equations, and supported diagrams. Use OCR for scans.
 - **[Video to storyboard](#video-keyframes-in-the-browser):** Detect scene changes in MP4/WebM and export timestamped scene and context frames.
@@ -41,8 +42,31 @@ const { markdown } = await lab.parse(await readFile('document.pdf'));
 console.log(markdown);
 ```
 
+For retrieval and question-answering pipelines, set `markdownProfile: 'rag'`
+to get `ragChunks` with section headings, table context, and PDF page and row
+references. The library groups related form options and links margin notes
+to numbered rows when their positions and text support the link.
+See the [RAG usage guide](docs/usage.md#retrieval-and-question-answering)
+and [retrieval benchmark](BENCHMARK.md#retrieval-benchmark).
+
 Use a Node.js version supported by the installed PDF.js peer. For example,
 `pdfjs-dist@6.5.438` requires Node.js 22.13+ on the 22.x line, or Node.js 24+.
+
+### Faithful and RAG profiles
+
+Both profiles share the same PDF internals, OCR, reading-order, table, form,
+and figure pipeline.
+
+| Profile | Output | Retrieval behavior |
+| --- | --- | --- |
+| `faithful` | Original layout-oriented GFM Markdown | Keeps exact table and form text. Table indexing can use neighboring-row context without changing the displayed Markdown. |
+| `rag` | Contextual GFM Markdown plus `ragChunks` | Rewrites tagged forms semantically, groups related rows, carries section headings, and includes stable PDF page and row sources. |
+
+The 170-document corpus contains 1,038 pages, 1,286 detected tables, and
+34,841 valid source references with no failed files. On the 15-query natural
+language benchmark, both profiles reach 100% evidence coverage and 100%
+Recall@5. The 310-query synthetic table benchmark reaches 100% on every
+retrieval measure for both profiles. See the [full benchmark](BENCHMARK.md).
 
 ### PDF in the Browser
 
@@ -146,8 +170,9 @@ redistributed with this package. Use the publisher copies:
 | [Attention Is All You Need](https://arxiv.org/pdf/1706.03762v7) | `1706.03762v7.pdf` |
 | [World Bank Viet Nam](https://www.worldbank.org/en/businessready/economy/viet-nam) | `viet-nam-2025.pdf` |
 
-The demo also detects a local Schedule D fixture and two generated samples
-in `../pdf/corpus-150/synthetic/` for three-column tables and ruled scans.
+The demo also detects a local Schedule D fixture and generated samples in
+`../pdf/corpus-170/synthetic/` for three-column, borderless, nested, and ruled
+scan tables.
 The [benchmark](BENCHMARK.md#150-document-corpus) includes the corpus commands.
 
 ## OCR

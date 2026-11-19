@@ -9,6 +9,8 @@ import { mergeRegions, createVisionEngine, iou, nms } from './vision.js';
 import { sniffKind } from './kind.js';
 import { destroyOcrWorker, ocrPage, ocrPagesParallel, probeOcrLang, OCR_DEFAULT_LANGS } from './ocr.js';
 import { normalizeOcrLanguages, resolveOcrModels } from './ocrLanguages.js';
+import { pageOrderedBlocks, toRagBlocks, toRagChunks } from './rag.js';
+export { rankRagChunks } from './rag.js';
 export { OCR_LANGUAGE_CODES } from './ocrLanguages.js';
 
 export const VERSION = '1.0.1';
@@ -80,7 +82,7 @@ export class IngestLab {
         ` :dh${o.dropHeadersFooters ? 1 : 0}:bt${o.detectBorderlessTables ? 1 : 0}:fig${o.figures ? 1 : 0}` +
         `:ol${Number.isFinite(o.ocrPageLimit) ? o.ocrPageLimit : 'inf'}:roi${o.ocrRoi ? 1 : 0}:al${o.ocrAutoLang ? 1 : 0}` +
         `:fmax${o.maxFigures}:visual${+renderVisuals}:source${+!!o.preservePages}:html${+!!o.semanticHtml}:ocrimg${+!!o.ocrImages}` +
-        `:svg${+!!o.vectorFigures}:raster${+!o.skipRasterFigures}:artifact${+!!o.dropArtifacts}:gfm23` +
+        `:svg${+!!o.vectorFigures}:raster${+!o.skipRasterFigures}:artifact${+!!o.dropArtifacts}:profile${o.markdownProfile || 'faithful'}:gfm24` +
         `:model${JSON.stringify([o.ocrRuntime?.langPath, o.ocrRuntime?.gzip])}`;
       cache = await cacheForBytes(bytes, cacheVersion);
       const hit = await cache.get();
@@ -126,7 +128,9 @@ export class IngestLab {
       if (data.annotations.length >= 2) {
         try {
           const { readTaggedForm } = await import('./taggedForm.js');
-          data.taggedForm = await readTaggedForm(page, data, { dropArtifacts: o.dropArtifacts });
+          data.taggedForm = await readTaggedForm(page, data, {
+            dropArtifacts: o.dropArtifacts, includeRowInfo: o.markdownProfile === 'rag',
+          });
         } catch { /* Fall back to geometric layout. */ }
       }
       try {
@@ -404,7 +408,7 @@ export class IngestLab {
             if (b.type === 'table') return b.rows.flat().join(' ');
             if (b.type === 'list') return b.items.map((it) => it.text).join(' ');
             if (b.type === 'code') return b.lines.join(' ');
-            if (b.type === 'figure') return [b.sourceText, b.sourceCaption, b.caption].filter(Boolean).join(' ');
+            if (b.type === 'figure') return [b.sourceText, b.sourceCaption, b.caption, ...(b.extraLabels || [])].filter(Boolean).join(' ');
             if (b.type === 'worksheet' || b.type === 'form_grid' || b.type === 'form_matrix' || b.type === 'kv_panel') return emitBlocks([b]);
             return b.text || '';
           })
@@ -485,57 +489,17 @@ export class IngestLab {
       : { assets: [], failed: 0 };
     assets.push(...vectors.assets);
     const tMd0 = performance.now();
-    const sections = [];
-    const append = (blocks) => {
-      const section = emitBlocks(blocks);
-      if (section) sections.push(section);
-    };
-    let lastFlushed = null;
-    for (let i = 0; i < pageBlocks.length; i++) {
-      let blocks = pageBlocks[i];
-      if (lastFlushed && blocks.length && blocks[0].type === 'paragraph') {
-        const head = blocks[0].text;
-        if (/^[\p{Ll}]/u.test(head) && lastFlushed.text.endsWith('-')) {
-          lastFlushed.text = lastFlushed.text.slice(0, -1) + head;
-          blocks = blocks.slice(1);
-        } else if (/^[\p{Ll}]/u.test(head) && lastFlushed.text.length > 40 && !/[.!?:;”"')\]]$/.test(lastFlushed.text)) {
-          lastFlushed.text = lastFlushed.text + ' ' + head;
-          blocks = blocks.slice(1);
-        } else {
-          append([lastFlushed]);
-          lastFlushed = null;
-        }
-      } else if (lastFlushed) {
-        append([lastFlushed]);
-        lastFlushed = null;
-      }
-      if (blocks.length && blocks[blocks.length - 1].type === 'paragraph') {
-        const tail = blocks[blocks.length - 1];
-        // Flush the merged paragraph before queuing the next page tail.
-        if (lastFlushed) {
-          append([lastFlushed]);
-          lastFlushed = null;
-        }
-        append(blocks.slice(0, -1));
-        lastFlushed = { ...tail };
-      } else {
-        if (lastFlushed) {
-          append([lastFlushed]);
-          lastFlushed = null;
-        }
-        append(blocks);
-      }
-    }
-    if (lastFlushed) append([lastFlushed]);
-    const markdown = sections.join('\n\n').trimEnd() + '\n';
     const { collectControls, renderControls, semanticTable } = await import('./semantic.js');
     const controls = pageData.flatMap((page, i) => collectControls(page, i + 1));
+    const blocks = pageBlocks.flat();
+    const ragBlocks = o.markdownProfile === 'rag' ? toRagBlocks(pageBlocks) : null;
+    const outputMarkdown = emitBlocks(ragBlocks ?? pageOrderedBlocks(pageBlocks)).trimEnd() + '\n';
+    const ragChunks = ragBlocks ? toRagChunks(ragBlocks) : null;
     const richMarkdown = o.semanticHtml
-      ? emitBlocks(pageBlocks.flat(), semanticTable)
+      ? emitBlocks(ragBlocks ?? blocks, semanticTable)
       : undefined;
     const markdownMs = performance.now() - tMd0;
 
-    const blocks = pageBlocks.flat();
     const figures = pageData.flatMap((d) => d.figures || []);
     const stats = {
       pages,
@@ -556,14 +520,15 @@ export class IngestLab {
       vectorUnrepresented: vectors.unrepresented,
       imageOcrRegions: imageOcr.done,
       imageOcrFailed: imageOcr.failed,
-      chars: markdown.length,
+      chars: outputMarkdown.length,
       ms: Math.round((performance.now() - t0) * 10) / 10,
       extractMs: Math.round(extractMs * 10) / 10,
       layoutMs: Math.round(layoutMs * 10) / 10,
       markdownMs: Math.round(markdownMs * 10) / 10,
     };
     const result = {
-      markdown,
+      markdown: outputMarkdown,
+      ...(ragChunks && { ragChunks }),
       controls,
       richMarkdown,
       formHtml: o.semanticHtml ? renderControls(controls) : undefined,
@@ -636,6 +601,7 @@ export class IngestLab {
       return {
         kind,
         markdown: doc.markdown,
+        ...(doc.ragChunks && { ragChunks: doc.ragChunks }),
         richMarkdown: doc.richMarkdown,
         formHtml: doc.formHtml,
         controls: doc.controls,

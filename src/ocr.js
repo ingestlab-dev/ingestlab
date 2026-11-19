@@ -2,7 +2,7 @@
 import { OCR_DEFAULT_LANGS, resolveOcrModels } from './ocrLanguages.js';
 export { OCR_DEFAULT_LANGS };
 const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@7/dist/tesseract.esm.min.js';
-const RENDER_SCALE = 2; // 144 DPI for standard PDF units.
+const RENDER_SCALE = 2;
 const needsRuleRetry = (count, segments) => count < 45 &&
   ((segments?.h?.length ?? 0) >= 2 || (segments?.v?.length ?? 0) >= 2);
 

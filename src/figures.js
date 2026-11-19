@@ -392,6 +392,8 @@ export function findFigureRegions(page, ruledBboxes = [], opts = {}) {
       }
 
       const kind = classify({ c, ink, imgArea, area, labels, hs, vs });
+      const verticalEvidence = vs.some((segment) => segment.to - segment.from > 0.2 * (c.y1 - c.y0));
+      if (kind === 'schematic' && !verticalEvidence && labels.length > 50) continue;
       const rH = hs.filter((sg) => sg.pos >= c.y0 - 2 && sg.pos <= c.y1 + 2 && sg.to - sg.from >= 16);
       const rV = vs.filter((sg) => sg.pos >= c.x0 - 2 && sg.pos <= c.x1 + 2 && sg.to - sg.from >= 16);
       const rotatedLabels = rotated

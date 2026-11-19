@@ -6,6 +6,12 @@ const status = document.querySelector('#file-status');
 const download = document.querySelector('#download');
 const samples = [...document.querySelectorAll('[data-sample]')];
 let markdown, name;
+let lastFile;
+const profile = document.querySelector('#markdown-profile');
+profile.addEventListener('change', () => {
+  dropzone.setAttribute('markdown-profile', profile.value);
+  if (lastFile) void dropzone.ingestFile(lastFile);
+});
 const picker = document.querySelector('#ocr-picker');
 const selection = document.querySelector('#ocr-selection');
 const search = document.querySelector('#ocr-search');
@@ -68,10 +74,12 @@ Promise.all(defaults.map((code) => fetch('/ocr-lang/' + code + '.traineddata', {
   }).catch(() => {});
 
 dropzone.addEventListener('ingest-progress', () => {
+  profile.disabled = true;
   download.disabled = true;
   status.textContent = '\u0110ang x\u1eed l\u00fd t\u1ec7p';
 });
 dropzone.addEventListener('ingest-result', ({ detail }) => {
+  profile.disabled = false;
   markdown = detail.markdown;
   download.disabled = !markdown;
   status.textContent = detail.stats ? `${detail.stats.pages} trang \u00b7 ${detail.stats.figures} h\u00ecnh\u002fbi\u1ec3u \u0111\u1ed3` :
@@ -79,6 +87,7 @@ dropzone.addEventListener('ingest-result', ({ detail }) => {
       `${detail.width} \u00d7 ${detail.height} \u00b7 ${detail.metrics.outputBytes.toLocaleString()} B`;
 });
 dropzone.addEventListener('ingest-error', () => {
+  profile.disabled = false;
   download.disabled = true;
   status.textContent = 'Kh\u00f4ng chuy\u1ec3n \u0111\u01b0\u1ee3c t\u1ec7p';
 });
@@ -107,9 +116,10 @@ for (const button of samples) {
       const filename = response.headers.get('X-Sample-Filename');
       name = filename ? decodeURIComponent(filename).replace(/\.pdf$/i, '.md') : 'ingestlab-sample-' + id + '.md';
       if (button.dataset.ocrLang) dropzone.setAttribute('ocr-langs', button.dataset.ocrLang);
-      await dropzone.ingestFile(new File([await response.blob()], name.replace(/\.md$/, '.pdf'), {
+      lastFile = new File([await response.blob()], name.replace(/\.md$/, '.pdf'), {
         type: 'application/pdf',
-      }));
+      });
+      await dropzone.ingestFile(lastFile);
     } catch {
       status.textContent = 'Kh\u00f4ng m\u1edf \u0111\u01b0\u1ee3c t\u1ec7p m\u1eabu';
     } finally {
@@ -121,9 +131,15 @@ for (const button of samples) {
 
 dropzone.shadowRoot.addEventListener('change', (event) => {
   const file = event.target.files?.[0];
-  if (file) name = file.name.replace(/\.pdf$/i, '') + '.md';
+  if (file) {
+    lastFile = file;
+    name = file.name.replace(/\.pdf$/i, '') + '.md';
+  }
 }, { capture: true });
 dropzone.addEventListener('drop', (event) => {
   const file = event.dataTransfer?.files?.[0];
-  if (file) name = file.name.replace(/\.pdf$/i, '') + '.md';
+  if (file) {
+    lastFile = file;
+    name = file.name.replace(/\.pdf$/i, '') + '.md';
+  }
 }, { capture: true });

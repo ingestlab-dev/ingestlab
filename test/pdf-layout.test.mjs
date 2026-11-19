@@ -5,6 +5,7 @@ import { IngestLab } from '../src/index.js';
 import { buildPageLayout, groupLines } from '../src/layout.js';
 import { contentRect } from '../src/ocr.js';
 import { detectRuledTables, findBorderlessTable } from '../src/tables.js';
+import { pageOrderedBlocks } from '../src/rag.js';
 
 const word = (str, x, y, w = 18) => ({ str, x0: x, x1: x + w, y, size: 10, mono: false });
 const line = (str, x, y, drift) => str.split(' ').map((part, i) => word(part, x + i * (25 + drift), y, 20));
@@ -20,6 +21,35 @@ const prose = blocks.map((block) => block.text).join('\n');
 assert.match(prose, /Left0 keeps the first idea together/);
 assert.ok(prose.indexOf('Left6') < prose.indexOf('Right0'));
 assert.match(prose, /Right6 keeps the next idea together/);
+
+const panelWords = [
+  word('Description', 40, 120, 70),
+  word('Pin', 320, 120, 18), word('1', 345, 120, 8),
+  word('The', 40, 140, 18), word('description', 65, 140, 55),
+  word('OUTPUT', 320, 140, 38), word('1', 365, 140, 8),
+  word('PKG', 320, 178, 22),
+];
+const panelBlocks = buildPageLayout({
+  words: panelWords,
+  lines: groupLines(panelWords),
+  width: 420,
+  height: 300,
+  segments: { h: [], v: [] },
+  figures: [{ bbox: { x0: 300, x1: 410, y0: 100, y1: 170, sourcePanel: true, caption: 'Pin assignments' } }],
+}, { body: 10, headingLevels: new Map() });
+const panelText = panelBlocks.map((block) => block.text || block.caption || '').join('\n');
+assert.match(panelText, /The description/);
+assert.doesNotMatch(panelText, /OUTPUT/);
+const panelFigure = panelBlocks.find((block) => block.type === 'figure');
+assert.deepEqual(panelFigure.extraLabels, ['PKG']);
+assert.ok(panelFigure, 'panel figure keeps its own labels');
+assert.doesNotMatch(panelText, /PKG/, 'adjacent panel label is not emitted as an orphan');
+
+const joined = pageOrderedBlocks([[
+  { type: 'paragraph', text: 'A paragraph split by the layout', _y1: 10 },
+  { type: 'paragraph', text: 'engine keeps one context window.', _y1: 20 },
+]]);
+assert.equal(joined[0].text, 'A paragraph split by the layout engine keeps one context window.');
 
 const justifiedText = ['The first definition continues below', 'under the terms already described', 'within each article of the act'];
 const justifiedLines = justifiedText.map((text, i) => ({
@@ -58,8 +88,8 @@ assert.ok(withConnectedText.left + withConnectedText.width >= 594);
 const publicDir = process.env.INGESTLAB_PUBLIC_PDF_DIR;
 if (publicDir) {
   const lab = await IngestLab.init();
-  const parse = async (name) => lab.parse(await readFile(join(publicDir, name)), {
-    cache: false, ocr: false, imageMode: 'none', dropHeadersFooters: false,
+  const parse = async (name, options) => lab.parse(await readFile(join(publicDir, name)), {
+    cache: false, ocr: false, imageMode: 'none', dropHeadersFooters: false, ...options,
   });
   const article = await parse('acl-two-column.pdf');
   const intro = article.markdown.indexOf('## 1 Introduction');
@@ -67,6 +97,11 @@ if (publicDir) {
   assert.ok(intro >= 0 && topRight > intro);
   assert.match(article.markdown, /demonstrated state-of-the-art performance in inferring the temporal ordering/);
   assert.doesNotMatch(article.markdown, /^of-the-art poral$/m);
+  const ragArticle = await parse('acl-two-column.pdf', { markdownProfile: 'rag' });
+  assert.equal(ragArticle.markdown, article.markdown);
+  const passage = ragArticle.ragChunks.find(({ text }) =>
+    text.includes('demonstrated state-of-the-art performance in inferring the temporal ordering'));
+  assert.ok(passage?.sources.length);
 
   const pinout = await parse('nxp-pcf8574.pdf');
   const pins = pinout.pages[3].find((block) => block.type === 'table' && block.rows[0][0] === 'Symbol');

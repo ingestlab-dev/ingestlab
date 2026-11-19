@@ -122,6 +122,7 @@ class IngestDropzone extends HTMLElementBase {
       const ingestOpts = {
         semanticHtml: true,
         dropHeadersFooters: false,
+        markdownProfile: this.getAttribute('markdown-profile') === 'rag' ? 'rag' : undefined,
         sceneThreshold: parseFloat(this.getAttribute('scene-threshold')) || undefined,
         maxKeyframes: parseInt(this.getAttribute('max-keyframes'), 10) || undefined,
         onProgress: (ev) => {
@@ -652,7 +653,7 @@ export { renderMarkdown };
 
 /**
  * React 18/19 wrapper:
- *   <IngestDropzone label="..." sceneThreshold={0.12} maxKeyframes={8}
+ *   <IngestDropzone label="..." markdownProfile="rag" sceneThreshold={0.12} maxKeyframes={8}
  *                   onIngestResult={(e) => console.log(e.detail)} />
  * Uses React from props.react ?? globalThis.React — zero bundled framework.
  */
@@ -661,8 +662,9 @@ export function IngestDropzoneReact(props = {}) {
   if (!React) {
     throw new Error('ingestlab/widget: IngestDropzoneReact needs React (pass props.react or set globalThis.React)');
   }
-  const { react, sceneThreshold, maxKeyframes, onIngestResult, onIngestError, onIngestProgress, onIngestSample, ...rest } = props;
+  const { react, markdownProfile, sceneThreshold, maxKeyframes, onIngestResult, onIngestError, onIngestProgress, onIngestSample, ...rest } = props;
   const domProps = { ...rest };
+  if (markdownProfile !== undefined) domProps['markdown-profile'] = markdownProfile;
   if (sceneThreshold !== undefined) domProps['scene-threshold'] = String(sceneThreshold);
   if (maxKeyframes !== undefined) domProps['max-keyframes'] = String(maxKeyframes);
   if (onIngestResult) domProps.oningestresult = onIngestResult;
