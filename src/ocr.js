@@ -3,6 +3,8 @@ import { OCR_DEFAULT_LANGS, resolveOcrModels } from './ocrLanguages.js';
 export { OCR_DEFAULT_LANGS };
 const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@7/dist/tesseract.esm.min.js';
 const RENDER_SCALE = 2; // 144 DPI for standard PDF units.
+const needsRuleRetry = (count, segments) => count < 45 &&
+  ((segments?.h?.length ?? 0) >= 2 || (segments?.v?.length ?? 0) >= 2);
 
 let _worker = null;
 let _workerLangs = null;
@@ -87,7 +89,8 @@ export async function ocrPagesParallel(doc, pageNumbers, pdfjs, opts = {}, hooks
   if (cacheDir) mkdirSync(cacheDir, { recursive: true });
   const cacheKey = cacheDir && (await import('node:crypto')).createHash('sha256')
     .update(JSON.stringify([langs, opts.ocrRuntime?.langPath, opts.ocrRuntime?.gzip, opts.ocrRoi])).digest('hex').slice(0, 16);
-  const cacheFile = (p) => `${cacheDir}/${(opts.docHash || 'doc').slice(0, 16)}-p${p}-${cacheKey}-r2.json`;
+  const cacheFile = (p, version = 4) =>
+    `${cacheDir}/${(opts.docHash || 'doc').slice(0, 16)}-p${p}-${cacheKey}-r${version}.json`;
 
   const results = new Map();
   let next = 0;
@@ -102,15 +105,21 @@ export async function ocrPagesParallel(doc, pageNumbers, pdfjs, opts = {}, hooks
   for (const p of pageNumbers) {
     const probe = opts.precomputed?.get(p);
     if (probe?.words?.length) { record(p, probe); continue; }
-    if (cacheDir && existsSync(cacheFile(p))) {
-      try {
-        const cached = JSON.parse(readFileSync(cacheFile(p), 'utf8'));
-        if (cached.words?.length) {
-          record(p, { words: cached.words, segments: cached.segments || { h: [], v: [] } });
-          continue;
-        }
-      } catch {}
+    let cached;
+    if (cacheDir) {
+      for (const version of [4, 3]) {
+        const file = cacheFile(p, version);
+        if (!existsSync(file)) continue;
+        try {
+          const entry = JSON.parse(readFileSync(file, 'utf8'));
+          if (entry.words?.length && (version === 4 || !needsRuleRetry(entry.words.length, entry.segments))) {
+            cached = entry;
+            break;
+          }
+        } catch {}
+      }
     }
+    if (cached) { record(p, { words: cached.words, segments: cached.segments || { h: [], v: [] } }); continue; }
     pending.push(p);
   }
   if (!pending.length) return results;
@@ -226,21 +235,24 @@ function suppressStamps(render) {
   return { data: d, w, h };
 }
 
-function contentRect(gray, scale) {
+export function contentRect(gray) {
   const { data, w, h } = gray;
   const S = 8;
   const cw = Math.ceil(w / S);
   const ch = Math.ceil(h / S);
-  const DARK = 150, MIN = 3;
+  const DARK = 150;
   const rows = new Uint8Array(ch);
   const cols = new Uint8Array(cw);
+  const ink = new Uint8Array(cw * ch);
   for (let y = 0; y < h; y++) {
     const r = (y / S) | 0;
     const row = y * w;
     for (let x = 0; x < w; x++) {
       if (data[(row + x) * 4] < DARK) {
         rows[r] = 1;
-        cols[(x / S) | 0] = 1;
+        const c = (x / S) | 0;
+        cols[c] = 1;
+        ink[r * cw + c] = 1;
       }
     }
   }
@@ -248,10 +260,34 @@ function contentRect(gray, scale) {
   for (let i = 0; i < ch; i++) if (rows[i]) { if (r0 < 0) r0 = i; r1 = i; }
   for (let i = 0; i < cw; i++) if (cols[i]) { if (c0 < 0) c0 = i; c1 = i; }
   if (r0 < 0 || c0 < 0) return null;
+  // A rotated margin imprint can confuse OCR for the entire page.
+  const edgeLimit = Math.floor(0.06 * cw);
+  const separate = (edge, step) => {
+    const outer = step > 0 ? edge : cw - 1 - edge;
+    if (outer > edgeLimit) return edge;
+    let c = edge;
+    while (c >= 0 && c < cw && Math.abs(c - edge) <= edgeLimit) {
+      if (cols[c]) { c += step; continue; }
+      const gapStart = c;
+      while (c >= 0 && c < cw && !cols[c]) c += step;
+      if (c < 0 || c >= cw || Math.abs(c - gapStart) < Math.max(2, 0.014 * cw)) continue;
+      if (step > 0 ? c >= c1 - 0.6 * cw : c <= c0 + 0.6 * cw) continue;
+      const first = Math.min(edge, gapStart - step);
+      const last = Math.max(edge, gapStart - step);
+      let activeRows = 0;
+      for (let r = 0; r < ch; r++) {
+        if (ink.subarray(r * cw + first, r * cw + last + 1).includes(1)) activeRows++;
+      }
+      if (activeRows >= 0.2 * ch) return c;
+    }
+    return edge;
+  };
+  const innerLeft = separate(c0, 1);
+  const innerRight = separate(c1, -1);
   const PAD = 3; // Tesseract expects the crop rectangle in image pixels.
-  const left = Math.max(0, (c0 - PAD) * S);
+  const left = Math.max(0, (innerLeft === c0 ? c0 - PAD : innerLeft) * S);
   const top = Math.max(0, (r0 - PAD) * S);
-  const width = Math.min(w, (c1 + 1 + PAD) * S) - left;
+  const width = Math.min(w, (innerRight === c1 ? c1 + 1 + PAD : innerRight + 1) * S) - left;
   const height = Math.min(h, (r1 + 1 + PAD) * S) - top;
   if ((width * height) / (w * h) > 0.97) return null;
   if (width < 80 || height < 80) return null;
@@ -301,11 +337,11 @@ export async function probeOcrLang(doc, pageNumbers, pdfjs, opts = {}) {
   }
 }
 
-export function detectRuledLines(gray, pageW, pageH, scale = RENDER_SCALE) {
+export function detectRuledLines(gray, pageW, pageH, scale = RENDER_SCALE, minVerticalRatio = 0.2) {
   const { data, w, h } = gray;
   const stride = gray.stride ?? 4;
   const minH = Math.round(0.3 * w);
-  const minV = Math.round(0.2 * h);
+  const minV = Math.round(minVerticalRatio * h);
   const cap = 240;
   // Keep short strokes for the form detector.
   const boxCap = 400;
@@ -401,19 +437,47 @@ export async function ocrPage(page, pdfjs, opts = {}) {
   const { renderPage } = await import('./render.js');
   const render = await renderPage(page, RENDER_SCALE);
   const gray = suppressStamps(render);
-  const segments = detectRuledLines(gray, render.w / RENDER_SCALE, render.h / RENDER_SCALE);
+  let segments = detectRuledLines(gray, render.w / RENDER_SCALE, render.h / RENDER_SCALE);
   let rect;
   if (opts.ocrRect === null) rect = null;
   else if (opts.ocrRect && typeof opts.ocrRect === 'object') rect = opts.ocrRect;
-  else rect = contentRect(gray, RENDER_SCALE);
+  else rect = contentRect(gray);
   // Browser Tesseract accepts a canvas, but not ImageData.
-  const img = render.isNode ? render.canvas.toBuffer('image/png') : render.canvas;
-
+  const image = () => render.isNode ? render.canvas.toBuffer('image/png') : render.canvas;
   const worker = poolWorker || (await getWorker(langs, opts.ocrRuntime));
-  const { data } = await worker.recognize(img, rect ? { rectangle: rect } : {}, { text: true, blocks: true });
+  const recognize = async () => {
+    const { data } = await worker.recognize(image(), rect ? { rectangle: rect } : {}, { text: true, blocks: true });
+    return collectWords(data).filter((word) => word.conf >= 40 && word.str.trim());
+  };
+  let recognized = await recognize();
+  if (needsRuleRetry(recognized.length, segments)) {
+    const data = new Uint8Array(gray.w * gray.h);
+    for (let i = 0; i < data.length; i++) data[i] = gray.data[i * 4] < 220 ? 0 : 255;
+    const rules = detectRuledLines({ ...gray, data, stride: 1 },
+      gray.w / RENDER_SCALE, gray.h / RENDER_SCALE, RENDER_SCALE, 0.115);
+    if (rules.h.length >= 5 && rules.h.length <= 55 && rules.v.length >= 3 && rules.v.length <= 55) {
+      // A second pass can recover text that Tesseract excluded as line art.
+      render.ctx.fillStyle = '#fff';
+      for (const s of rules.h) render.ctx.fillRect(s.from * RENDER_SCALE - 1, s.pos * RENDER_SCALE - 3,
+        (s.to - s.from) * RENDER_SCALE + 2, 6);
+      for (const s of rules.v) render.ctx.fillRect(s.pos * RENDER_SCALE - 3, s.from * RENDER_SCALE - 1,
+        6, (s.to - s.from) * RENDER_SCALE + 2);
+      await worker.setParameters({ tessedit_pageseg_mode: '11' });
+      try {
+        const retry = await recognize();
+        if (retry.length >= Math.max(20, 1.3 * recognized.length)) {
+          recognized = retry.filter((word) => word.str.trim() !== '|');
+          segments = rules;
+        }
+      } catch {
+        // Keep the first pass if the retry fails.
+      } finally {
+        await worker.setParameters({ tessedit_pageseg_mode: '3' });
+      }
+    }
+  }
 
-  const words = collectWords(data)
-    .filter((x) => x.conf >= 40 && x.str.trim())
+  const words = recognized
     .map((x) => ({
       str: x.str.trim(),
       x0: x.bbox.x0 / RENDER_SCALE,

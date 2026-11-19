@@ -108,6 +108,39 @@ export function isMathLine(line) {
   return mathScore(line) >= 0.22;
 }
 
+export function recoverDisplayFraction(numerator, equation, rules) {
+  if (!equation || !isMathLine(equation) || !equation.text.includes('=') ||
+      numerator.words.length > 5 || equation.y - numerator.y > 1.5 * equation.size) return null;
+  const rule = rules.find((s) => s.pos > Math.max(...numerator.words.map((w) => w.y)) &&
+    s.pos < equation.y && s.from >= numerator.x0 - 3 && s.to <= numerator.x1 + 3 &&
+    s.from <= numerator.x0 + 2 && s.to >= numerator.x1 - 2);
+  if (!rule) return null;
+
+  const words = equation.words.slice().sort((a, b) => a.x0 - b.x0);
+  const inside = words.filter((w) => w.x0 >= rule.from - 1 && w.x1 <= rule.to + 1);
+  const before = words.filter((w) => !inside.includes(w) && w.x1 <= rule.from + 1);
+  const after = words.filter((w) => !inside.includes(w) && w.x0 >= rule.to - 1);
+  if (!before.some((w) => w.str.includes('=')) || !after.length ||
+      before.length + inside.length + after.length !== words.length) return null;
+  const render = (ws) => toMathText({ words: ws, size: Math.max(...ws.map((w) => w.size)) });
+  const root = inside[0]?.str === '\u221a' ? inside[0] : null;
+  const denominator = root ? inside.slice(1) : inside;
+  if (!denominator.length || !denominator.every((w) => w.y > equation.y + 1)) return null;
+  let bottom = render(denominator);
+  if (root) {
+    if (!rules.some((s) => Math.abs(s.pos - root.y) <= 2 && s.from >= root.x0 &&
+        s.from <= denominator[0].x0 + 2 && s.to >= denominator.at(-1).x1 - 2 && s.to <= rule.to + 1)) return null;
+    const [base, sub] = denominator;
+    if (denominator.length === 2 && sub.size < 0.85 * base.size &&
+        sub.y > base.y + 1 && sub.x0 <= base.x1 + 1 && /^[\p{L}\d]+$/u.test(sub.str)) {
+      bottom = base.str + '_{' + sub.str + '}';
+    }
+    bottom = '\\sqrt{' + bottom + '}';
+  }
+  const suffix = render(after).replace(/\s*\((\d+)\)$/, ' \\tag{$1}');
+  return render(before) + ' \\frac{' + render(numerator.words) + '}{' + bottom + '}' + suffix;
+}
+
 export function toMathText(line) {
   const words = [...line.words].sort((a, b) => a.x0 - b.x0);
   const size = Math.max(1, line.size || 6);

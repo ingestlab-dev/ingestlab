@@ -877,13 +877,23 @@ export async function extractPage(page, pdfjs, opts = {}) {
     return n;
   };
   const formBoxes = primitives.filter((p) => (p.type === 'checkbox' || p.type === 'radio') && segDensity(p.bbox) <= 60);
-  for (const p of formBoxes) {
-    if (p.type === 'checkbox') {
-      words.push({ str: p.checked ? '☑' : '☐', x0: p.bbox.x0, x1: p.bbox.x1, y: p.bbox.y1, size: Math.max(6, p.bbox.y1 - p.bbox.y0), mono: false });
-    } else if (p.type === 'radio') {
-      words.push({ str: p.checked ? '◉' : '○', x0: p.bbox.x0, x1: p.bbox.x1, y: p.bbox.y1, size: Math.max(6, p.bbox.y1 - p.bbox.y0), mono: false });
+  const pageText = words.slice();
+  const controlWord = (bbox, str) => {
+    const { x0, x1, y0, y1 } = bbox;
+    const height = y1 - y0;
+    const width = x1 - x0;
+    if (Math.min(width, height) < 0.8 * Math.max(width, height)) {
+      return { str, x0, x1, y: y1, size: Math.max(6, height), mono: false };
     }
-  }
+    let label;
+    for (const word of pageText) {
+      if (word.x0 < x1 - 0.5 || word.x0 > x1 + 1.5 * height ||
+          word.y < y1 - 0.6 * height || word.y > y1 + 0.4 * height ||
+          /^[\u2610-\u2612\u25cb\u25c9xX]$/u.test(word.str)) continue;
+      if (!label || word.x0 < label.x0) label = word;
+    }
+    return { str, x0, x1, y: label?.y ?? y1, size: label?.size ?? Math.max(6, height), mono: false };
+  };
   const annotations = [];
   try {
     const annots = await page.getAnnotations({ intent: 'display' });
@@ -916,17 +926,43 @@ export async function extractPage(page, pdfjs, opts = {}) {
       });
       const bh = bbox.y1 - bbox.y0;
       if (type === 'Btn' && (a.checkBox || a.radioButton)) {
-        words.push({ str: a.radioButton ? (checked ? '◉' : '○') : (checked ? '☑' : '☐'), x0: bbox.x0, x1: bbox.x1, y: bbox.y1, size: Math.max(6, bh), mono: false });
-      } else if ((type === 'Tx' || type === 'Ch') && typeof a.fieldValue === 'string' && a.fieldValue.trim()) {
-        words.push({ str: a.fieldValue.trim(), x0: bbox.x0, x1: bbox.x1, y: bbox.y1, size: Math.max(6, bh * 0.75), mono: false });
+        words.push(controlWord(bbox, a.radioButton ? (checked ? '◉' : '○') : (checked ? '☑' : '☐')));
+      } else if (type === 'Tx' || type === 'Ch') {
+        const value = Array.isArray(a.fieldValue) ? a.fieldValue.join(', ') : String(a.fieldValue ?? '');
+        if (value.trim()) words.push({ str: value.trim(), x0: bbox.x0, x1: bbox.x1, y: bbox.y1, size: Math.max(6, bh * 0.75), mono: false });
       }
     }
   } catch {
+  }
+  const buttonWidgets = annotations.filter((a) => a.controlType === 'checkbox' || a.controlType === 'radio');
+  const checkboxGlyphs = words.filter((word) => /^[xX\u2713\u2714\u2717\u2718]$/u.test(word.str.trim()));
+  const usedMarks = new Set();
+  for (const p of formBoxes) {
+    const { x0, x1, y0, y1 } = p.bbox;
+    const widget = buttonWidgets.find(({ bbox: b }) =>
+      Math.min(b.x1, x1) - Math.max(b.x0, x0) >= 0.5 * Math.min(x1 - x0, b.x1 - b.x0) &&
+      Math.min(b.y1, y1) - Math.max(b.y0, y0) >= 0.5 * Math.min(y1 - y0, b.y1 - b.y0));
+    if (widget) {
+      p.checked = widget.isChecked;
+      continue;
+    }
+    if (p.type === 'checkbox' && Math.min(x1 - x0, y1 - y0) >= 0.8 * Math.max(x1 - x0, y1 - y0)) {
+      const mark = checkboxGlyphs.find((word) => !usedMarks.has(word) &&
+        word.x0 >= x0 - 0.5 && word.x1 <= x1 + 0.5 &&
+        word.y >= (y0 + y1) / 2 && word.y <= y1 + 0.5);
+      if (mark) {
+        p.checked = true;
+        usedMarks.add(mark);
+      }
+    }
+    const str = p.type === 'radio' ? (p.checked ? '◉' : '○') : (p.checked ? '☑' : '☐');
+    words.push(controlWord(p.bbox, str));
   }
   // Coalesce overprinted text without losing the faux-bold signal.
   const deduped = [];
   let fauxBold = 0;
   for (const w of words) {
+    if (usedMarks.has(w)) continue;
     const twin = deduped.find(
       (p) => p.str === w.str && Math.abs(p.x0 - w.x0) < 1.5 && Math.abs(p.y - w.y) < 1.5
     );

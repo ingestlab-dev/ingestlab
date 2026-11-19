@@ -247,7 +247,7 @@ for (const [file, w, h] of [['edge-854x480.mp4', 854, 480], ['edge-portrait-360x
 // Video ingest without browser APIs
 await assert.rejects(
   () => lab.ingest(mp4Bytes.slice(), { cache: false }),
-  /neither WebCodecs nor a DOM/,
+  /keyframe extraction requires browser APIs/,
   'video ingest in Node -> clean error'
 );
 
@@ -648,6 +648,8 @@ console.log('destroyVideoEngine() no-op in Node: OK');
       const doc = await lab.parse(new Uint8Array(readFileSync(`${UPLOAD}/${ax}`)), { cache: false, ocr: false });
       assert.ok(doc.stats.figures >= 1, `paper figure captured (got ${doc.stats.figures})`);
       assert.ok((doc.markdown.match(/\n\$\$/g) || []).length / 2 >= 5, `paper math blocks (got ${(doc.markdown.match(/\n\$\$/g) || []).length / 2})`);
+      assert.ok(doc.markdown.includes('\\frac{QK^{T}}{\\sqrt{d_{k}}}'));
+      assert.match(doc.markdown, /^> Figure 2: .*consists of several attention layers running in parallel\.$/m);
     }
     const vn = pick('viet-nam');
     if (vn) {

@@ -21,8 +21,10 @@ const files = new Map([['/', join(root, 'demo', 'index.html')]]);
 for (const lang of ['eng', 'vie']) files.set('/ocr-lang/' + lang + '.traineddata', join(root, lang + '.traineddata'));
 const presets = new Map([['f1040.pdf', 'form1040'], ['f1040 (1).pdf', 'form1040'], ['lm358.pdf', 'lm358'],
   ['1706.03762v7.pdf', 'transformer'], ['1706.03762.pdf', 'transformer'], ['viet-nam-2025.pdf', 'vietnam'],
+  ['Form 1040 Schedules 1, D and Side-by-Side Tax Tables.pdf', 'tax-schedules'],
+  ['finance-three-column-panels.pdf', 'three-column'], ['finance-scan-with-margin.pdf', 'ruled-scan'],
   ['IngestLab Diagrams, Charts & Math Test Suite.pdf', 'diagram']]);
-for (const dir of pdfDirs) {
+for (const dir of [...pdfDirs, resolve(pdfDirs[1], 'corpus-150', 'synthetic')]) {
   const samples = await readdir(dir).catch((error) => {
     if (error.code !== 'ENOENT') throw error;
     return [];

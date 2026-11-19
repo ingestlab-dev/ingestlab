@@ -171,7 +171,8 @@ function detectFieldGrids(pageData, lines, ruledBboxes, bodySize) {
     if (a.fieldType === 'Tx' || a.fieldType === 'Ch') {
       const w = a.bbox.x1 - a.bbox.x0;
       const h = a.bbox.y1 - a.bbox.y0;
-      if (w >= 14 && h >= 6 && w < 0.6 * W) boxes.push({ ...a.bbox, value: a.fieldValue ?? '' });
+      const value = Array.isArray(a.fieldValue) ? a.fieldValue.join(', ') : String(a.fieldValue ?? '');
+      if (w >= 14 && h >= 6 && w < 0.6 * W) boxes.push({ ...a.bbox, value });
     }
   }
 

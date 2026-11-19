@@ -22,6 +22,14 @@ const tables = (page) => page.filter((block) => block.type === 'table');
 const schedules = await parse('Form 1040 Schedules 1, D and Side-by-Side Tax Tables.pdf');
 const [schedule1, scheduleD, leftTax, rightTax] = tables(schedules.pages[0]);
 assert.equal(schedules.stats.tables, 4);
+const scheduleAnchors = ['SCHEDULE 1 (Form 1040)', 'SCHEDULE D (Form 1040)',
+  'SIDE-BY-SIDE SEMI-RULED TABLES', '| 1,000 | 1,025 |', '| 14,000 | 14,050 |'];
+let previousAnchor = -1;
+for (const anchor of scheduleAnchors) {
+  const index = schedules.markdown.indexOf(anchor);
+  assert.ok(index > previousAnchor, 'Unexpected position for ' + anchor);
+  previousAnchor = index;
+}
 assert.deepEqual(schedule1.rows[0], ['Line', 'Part I \u2014 Additional Income', 'Box', 'Amount ($)']);
 assert.deepEqual(scheduleD.rows.slice(2).map((row) => row.slice(1)), Array.from({ length: 4 }, () => ['', '', '', '']));
 assert.equal(scheduleD.meta.headerRows, 2);

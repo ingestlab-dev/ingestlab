@@ -209,7 +209,7 @@ export async function analyzeVideo(bytes, opts = {}) {
     }
   }
 
-  if (!canSeek) throw failure || new Error('ingestlab video: neither WebCodecs nor a DOM with canvas is available');
+  if (!canSeek) throw failure || new Error('ingestlab video: keyframe extraction requires browser APIs; use IngestLab in a browser, not plain Node.js');
   return withVideo(bytes, kind, async (video) => {
     let durationUs = Math.round(video.duration * 1e6);
     if (!Number.isFinite(durationUs) || durationUs <= 0) durationUs = demuxVideo(bytes).durationUs;

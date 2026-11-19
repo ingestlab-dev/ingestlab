@@ -318,7 +318,46 @@ export function detectRuledTables(words, segments, pageW, pageH, opts = {}) {
   for (const comp of comps) {
     detectRuledInComponent(words, comp, pageW, pageH, opts, tables);
   }
-  return tables;
+  if (!tables.some((table) => table.rows.length === 2)) return tables;
+  const horizontal = joinEdges(segments.h || []);
+  const vertical = joinEdges(segments.v || []);
+  return tables.map((table) => table.rows.length === 2
+    ? extendRuledHeader(table, words, horizontal, vertical) || table : table);
+}
+
+function extendRuledHeader(table, words, horizontal, vertical) {
+  const { x0, x1, y0, y1 } = table.bbox;
+  const headerRules = vertical.filter((s) => s.pos >= x0 - 2 && s.pos <= x1 + 2 &&
+    s.from < y1 - 5 && Math.abs(s.to - y1) <= 2);
+  const xs = cluster1d(headerRules, (s) => s.pos, 2).map((c) => c.key);
+  if (xs.length < 5 || Math.abs(xs[0] - x0) > 2 || Math.abs(xs.at(-1) - x1) > 2) return null;
+  const bottomRules = cluster1d(horizontal.filter((s) =>
+    s.pos > y1 + 4 && Math.abs(s.from - x0) <= 3 && Math.abs(s.to - x1) <= 3), (s) => s.pos, 2);
+  if (bottomRules.length < 5) return null;
+  const spacing = bottomRules[0].key - y1;
+  if (spacing < 7 || spacing > 25) return null;
+  const headerDivider = horizontal.find((s) => s.pos > y0 + 5 && s.pos < y1 - 5 &&
+    s.from > x0 + 5 && s.to < x1 - 5 && s.to - s.from > 15);
+  if (!headerDivider) return null;
+  const ys = [y0, headerDivider.pos, y1];
+  for (const { key } of bottomRules) {
+    if (Math.abs(key - ys.at(-1) - spacing) > Math.max(2, 0.21 * spacing)) break;
+    ys.push(key);
+  }
+  if (ys.length < 8) return null;
+  const rows = ys.slice(1).map((bottom, r) => {
+    const band = words.filter((w) => w.y >= ys[r] && w.y < bottom);
+    return xs.slice(1).map((right, c) => joinCellText(band.filter((w) => {
+      const x = (w.x0 + w.x1) / 2;
+      return x >= xs[c] && x < right;
+    })));
+  });
+  const data = rows.slice(2);
+  if (data.filter((row) => row[0] && row.at(-1) && row.slice(1, -1).some((value) => /^\d+$/.test(value))).length <
+      0.75 * data.length) return null;
+  const { spans = [] } = analyzeGrid({ ys: ys.slice(0, 3), xs, Hc: horizontal, Vc: vertical, rows: rows.slice(0, 2) }) || {};
+  return { ...table, rows, spans, meta: { headerRows: 2 }, keepColumns: true, continuedHeader: true,
+    bbox: { x0, y0, x1, y1: ys.at(-1) } };
 }
 
 function detectRuledInComponent(words, comp, pageW, pageH, opts, tables) {
@@ -452,8 +491,15 @@ function detectRuledInComponent(words, comp, pageW, pageH, opts, tables) {
       }
       const spans = [];
       const width = xs.length - 1;
-      const separator = (r, c) => V.some((s) => Math.abs(s.pos - xs[c]) <= 2.5 &&
+      const drawnSeparator = (r, c) => V.some((s) => Math.abs(s.pos - xs[c]) <= 2.5 &&
         s.from <= ys[r] + 2 && s.to >= ys[r + 1] - 2);
+      const numeric = /^[+−-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?$/u;
+      const alignedNumericRows = grid.map((row, r) => r >= 2 && row.slice(1).every((cell) =>
+        cell?.length === 1 && numeric.test(cell[0].str)));
+      const continuesHeader = width >= 4 && alignedNumericRows.filter(Boolean).length >= 3 &&
+        xs.slice(1, -1).every((_, c) => drawnSeparator(1, c + 1)) &&
+        alignedNumericRows.some((yes, r) => yes && !drawnSeparator(r, 1));
+      const separator = (r, c) => drawnSeparator(r, c) || (continuesHeader && r >= 2 && c > 0 && c < width);
       const divider = (c) => H.some((s) => Math.abs(s.pos - ys[1]) <= 2.5 &&
         coverLen(s.from, s.to, xs[c], xs[c + 1]) >= 0.8 * (xs[c + 1] - xs[c]));
       if (grid.length >= 4 && width >= 3) {
@@ -478,9 +524,48 @@ function detectRuledInComponent(words, comp, pageW, pageH, opts, tables) {
           }
         }
       }
+      if (continuesHeader) {
+        for (let r = 2; r < grid.length - 1; r++) {
+          if (!alignedNumericRows[r] || !alignedNumericRows[r + 1] || !grid[r][0] || !grid[r + 1][0]) continue;
+          const hasBoundary = (y, c) => H.some((s) => Math.abs(s.pos - y) <= 2.5 &&
+            coverLen(s.from, s.to, xs[c], xs[c + 1]) >= 0.8 * (xs[c + 1] - xs[c]));
+          if (!hasBoundary(ys[r], 0) || hasBoundary(ys[r + 1], 0) || !hasBoundary(ys[r + 2], 0) ||
+              !xs.slice(1, -1).every((_, c) => hasBoundary(ys[r + 1], c + 1))) continue;
+          grid[r][0].push(...grid[r + 1][0]);
+          grid[r + 1][0] = null;
+          spans.push({ r, c: 0, rowspan: 2, colspan: 1 });
+          r++;
+        }
+      }
+      for (let r = spans.length ? 2 : 0; r < grid.length; r++) {
+        const top = ys[r];
+        const bottom = ys[r + 1];
+        const hasDivider = (c) => separator(r, c) || V.some((s) => Math.abs(s.pos - xs[c]) <= 2.5 &&
+          coverLen(s.from, s.to, top, bottom) >= 0.4 * (bottom - top));
+        for (let c = 0; c < width; c++) {
+          if (!separator(r, c)) continue;
+          let end = c + 1;
+          while (end < width && !hasDivider(end)) end++;
+          if (end === c + 1 || !separator(r, end)) continue;
+          const left = xs[c];
+          const right = xs[end];
+          if (V.some((s) => s.pos > left + 3 && s.pos < right - 3 &&
+              coverLen(s.from, s.to, top, bottom) >= 0.4 * (bottom - top))) continue;
+          const enclosed = [top, bottom].every((y) => H.some((s) =>
+            Math.abs(s.pos - y) <= 2.5 && s.from <= left + 3 && s.to >= right - 3));
+          if (!enclosed) continue;
+          const cells = grid[r].slice(c, end);
+          if (cells.filter(Boolean).length < 2) continue;
+          grid[r][c] = cells.flatMap((cell) => cell || []);
+          grid[r].fill(null, c + 1, end);
+          spans.push({ r, c, rowspan: 1, colspan: end - c });
+          c = end - 1;
+        }
+      }
       const rows = grid.map((row) => row.map((cellWords) => joinCellText(cellWords)));
       // Skip sparse form grids unless their column boundaries are well supported.
-      const filled = rows.flat().filter((c) => c.trim()).length;
+      const filled = rows.flat().filter((c) => c.trim());
+      if (filled.length < rows.length && filled.every((cell) => numeric.test(cell))) continue;
       let tallCols = 0;
       for (const x of xs) {
         const spans = V.filter((s) => Math.abs(s.pos - x) <= 2.5 && s.to - s.from >= 0.6 * bbox.y1 - 0.6 * bbox.y0);
@@ -488,21 +573,23 @@ function detectRuledInComponent(words, comp, pageW, pageH, opts, tables) {
       }
       const confirmedForm = xs.length - 1 >= 4 && rows.length >= 4 && tallCols >= 0.7 * (xs.length - 1);
       const minFill = confirmedForm ? 0.12 : 0.35;
-      if (filled / (rows.length * (xs.length - 1)) < minFill) continue;
+      if (filled.length / (rows.length * (xs.length - 1)) < minFill) continue;
       const meta = analyzeGrid({
         ys,
         xs,
         Hc: H.filter((s) => s.pos >= ys[0] - 2 && s.pos <= ys[ys.length - 1] + 2),
-        Vc: V.filter((s) => s.pos >= xs[0] - 2 && s.pos <= xs[xs.length - 1] + 2),
+        Vc: [...V.filter((s) => s.pos >= xs[0] - 2 && s.pos <= xs[xs.length - 1] + 2),
+          ...(continuesHeader ? xs.slice(1, -1).map((pos) => ({ pos, from: ys[2], to: ys.at(-1) })) : [])],
         rows,
         rotated: opts.rotated || [],
         diags: (opts.diags || []).filter((d) => d[0] >= bbox.x0 - 2 && d[0] <= bbox.x1 + 2 && d[1] >= bbox.y0 - 2 && d[1] <= bbox.y1 + 2),
       });
       const t = { rows, bbox, kind: 'ruled' };
-      if (meta) {
-        t.spans = spans.length ? [...spans, ...meta.spans.filter((s) => s.r >= 2)] : meta.spans;
-        if (spans.length) meta.headerRows = 2;
-        t.meta = meta;
+      if (meta || spans.length) {
+        const overlaps = (a, b) => a.r < b.r + b.rowspan && b.r < a.r + a.rowspan &&
+          a.c < b.c + b.colspan && b.c < a.c + a.colspan;
+        t.spans = [...spans, ...(meta?.spans || []).filter((s) => !spans.some((span) => overlaps(s, span)))];
+        t.meta = { ...meta, ...(spans.some((s) => s.r === 0 && s.rowspan === 2) ? { headerRows: 2 } : {}) };
       }
       tables.push(t);
     }
@@ -873,6 +960,26 @@ export function findBorderlessTable(lines) {
   const edges = [Math.min(bounds[0].lo, minX0) - 3];
   for (let i = 0; i < bounds.length - 1; i++) edges.push((bounds[i].hi + bounds[i + 1].lo) / 2);
   edges.push(bounds[bounds.length - 1].hi + 200);
+
+  if (mode === 'start') {
+    const interior = edges.slice(1, -1);
+    let supported = 0;
+    for (const edge of interior) {
+      let count = 0;
+      for (const line of lines) {
+        let left = -Infinity;
+        let right = Infinity;
+        for (const word of line.words) {
+          if (word.x0 < edge) left = Math.max(left, word.x1);
+          else right = Math.min(right, word.x0);
+        }
+        if (left <= edge && Number.isFinite(left) && Number.isFinite(right) &&
+            right - left >= Math.max(6, 0.85 * size)) count++;
+      }
+      if (count >= 0.6 * lines.length) supported++;
+    }
+    if (supported < Math.ceil(0.6 * interior.length)) return null;
+  }
 
   const rows = lines.map((l) => {
     const cells = new Array(bounds.length).fill('');

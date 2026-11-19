@@ -106,12 +106,14 @@ for (const button of samples) {
       if (!response.ok) throw new Error('Sample unavailable');
       const filename = response.headers.get('X-Sample-Filename');
       name = filename ? decodeURIComponent(filename).replace(/\.pdf$/i, '.md') : 'ingestlab-sample-' + id + '.md';
+      if (button.dataset.ocrLang) dropzone.setAttribute('ocr-langs', button.dataset.ocrLang);
       await dropzone.ingestFile(new File([await response.blob()], name.replace(/\.md$/, '.pdf'), {
         type: 'application/pdf',
       }));
     } catch {
       status.textContent = 'Kh\u00f4ng m\u1edf \u0111\u01b0\u1ee3c t\u1ec7p m\u1eabu';
     } finally {
+      refreshOcr();
       for (const item of available) item.disabled = false;
     }
   });

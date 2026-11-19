@@ -11,7 +11,7 @@ import { destroyOcrWorker, ocrPage, ocrPagesParallel, probeOcrLang, OCR_DEFAULT_
 import { normalizeOcrLanguages, resolveOcrModels } from './ocrLanguages.js';
 export { OCR_LANGUAGE_CODES } from './ocrLanguages.js';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.1';
 
 const DEFAULT_USD_PER_PAGE_CLOUD = 0.003;
 
@@ -80,7 +80,7 @@ export class IngestLab {
         ` :dh${o.dropHeadersFooters ? 1 : 0}:bt${o.detectBorderlessTables ? 1 : 0}:fig${o.figures ? 1 : 0}` +
         `:ol${Number.isFinite(o.ocrPageLimit) ? o.ocrPageLimit : 'inf'}:roi${o.ocrRoi ? 1 : 0}:al${o.ocrAutoLang ? 1 : 0}` +
         `:fmax${o.maxFigures}:visual${+renderVisuals}:source${+!!o.preservePages}:html${+!!o.semanticHtml}:ocrimg${+!!o.ocrImages}` +
-        `:svg${+!!o.vectorFigures}:raster${+!o.skipRasterFigures}:artifact${+!!o.dropArtifacts}:gfm21` +
+        `:svg${+!!o.vectorFigures}:raster${+!o.skipRasterFigures}:artifact${+!!o.dropArtifacts}:gfm23` +
         `:model${JSON.stringify([o.ocrRuntime?.langPath, o.ocrRuntime?.gzip])}`;
       cache = await cacheForBytes(bytes, cacheVersion);
       const hit = await cache.get();
@@ -382,6 +382,7 @@ export class IngestLab {
         onProgress({ stage: 'layout', page: pi, pages });
         continue;
       }
+      const emittedWords = new Set();
       const blocks = buildPageLayout(
         {
           ...pageData[i],
@@ -395,7 +396,7 @@ export class IngestLab {
           },
         },
         scale,
-        { detectBorderlessTables: o.detectBorderlessTables }
+        { borderless: o.detectBorderlessTables, emittedWords }
       );
       {
         const coveredText = blocks
@@ -415,6 +416,7 @@ export class IngestLab {
         let masked = 0;
         const orphans = [];
         for (const w of activeLines.flatMap((l) => l.words)) {
+          if (emittedWords.has(w)) continue;
           const t = w.str.trim();
           if (!t || covered.has(t)) continue;
           if (/^\s*[-–—*•▪◦●·‣⁃]\s*$/.test(t)) continue;

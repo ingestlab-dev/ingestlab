@@ -381,7 +381,7 @@ export class IngestLab {
   static init(opts?: InitOpts): Promise<IngestLab>;
   /** PDF -> markdown (vector-first). Works in Node too. */
   parse(bytes: Uint8Array | ArrayBuffer, opts?: ParseOpts): Promise<ParseResult>;
-  /** Unified PDF / Video / Image entry point (video & image need a browser). */
+  /** Ingest a PDF, image, or video. Video keyframes require browser media APIs. */
   ingest(fileOrBlob: File | Blob | Uint8Array | ArrayBuffer, opts?: IngestOpts): Promise<IngestResult>;
 }
 

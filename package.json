@@ -1,8 +1,8 @@
 {
   "name": "ingestlab",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
-  "description": "Client-side PDF to GFM Markdown with OCR, tables, form fields, and Mermaid.",
+  "description": "Client-side PDF to Markdown, video storyboards, and image optimization.",
   "repository": {
     "type": "git",
     "url": "https://github.com/ingestlab-dev/ingestlab.git"
@@ -31,7 +31,7 @@
     "demo": "node tools/demo-server.mjs",
     "build": "node tools/build.mjs",
     "prepack": "npm run build",
-    "test": "node test/node.test.mjs && node test/visuals.test.mjs && node test/corpus-regression.test.mjs && node test/visual-variants.test.mjs",
+    "test": "node test/node.test.mjs && node test/visuals.test.mjs && node test/corpus-regression.test.mjs && node test/visual-variants.test.mjs && node test/pdf-layout.test.mjs",
     "gen:video": "node test/make_sample_video.mjs",
     "bundle:size": "node tools/measure-entry.mjs",
     "types:check": "tsc -p test/tsconfig.json",
@@ -61,26 +61,16 @@
     "node": ">=18"
   },
   "peerDependencies": {
-    "@napi-rs/canvas": "^1.1.1",
-    "pdfjs-dist": ">=4.0.0 <7",
-    "tesseract.js": "^7.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@napi-rs/canvas": {
-      "optional": true
-    },
-    "tesseract.js": {
-      "optional": true
-    }
+    "pdfjs-dist": ">=4.0.0 <7"
   },
   "devDependencies": {
-    "@napi-rs/canvas": "^1.1.1",
     "esbuild": "^0.25.0",
     "pdfjs-dist": "^6.5.438",
-    "tesseract.js": "^7.0.0",
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "markdown-it": "^14.3.3"
+    "@napi-rs/canvas": "^1.1.1",
+    "markdown-it": "^14.3.3",
+    "tesseract.js": "^7.0.0"
   }
 }

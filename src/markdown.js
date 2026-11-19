@@ -260,7 +260,8 @@ export function emitBlocks(blocks, tableRenderer = emitTable) {
         break;
       case 'figure': {
         if (b.caption) {
-          parts.push(`> **Visual reconstruction:** ${inlineChecks(b.caption)}`);
+          const caption = inlineChecks(b.caption);
+          parts.push(b.kind === 'caption' ? `> ${caption}` : `> **Visual reconstruction:** ${caption}`);
           break;
         }
         const w = b.bboxW ? ` ${b.bboxW}×${b.bboxH}` : '';

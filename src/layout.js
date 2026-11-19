@@ -3,7 +3,7 @@ import { cluster1d, mean } from './util.js';
 import { detectRuledTables, detectSemiRuledTables, findBorderlessTable, BULLET_RE, ORDERED_RE } from './tables.js';
 import { extractFormBlocks, looksLikeFormPage } from './forms.js';
 import { extractLookupTables } from './lookupTables.js';
-import { isMathLine, toMathText, isMathFont } from './math.js';
+import { isMathLine, toMathText, isMathFont, recoverDisplayFraction } from './math.js';
 
 function structHeadingFor(pageCtx, line) {
   const internals = pageCtx.internals;
@@ -215,14 +215,84 @@ export function headingPlausibleForm(text) {
   return true;
 }
 
-// Use full-width content to split the page before reading each column.
-function columnOrder(lines, width, consumedMap) {
+function proseGutter(lines, width) {
+  const gaps = [];
+  for (const line of lines) {
+    if (line.words.length < 8 || line.mono) continue;
+    for (let i = 4; i <= line.words.length - 4; i++) {
+      const left = line.words[i - 1].x1;
+      const right = line.words[i].x0;
+      if (right - left < Math.max(9, 0.9 * line.size)) continue;
+      if (left - line.x0 < 0.18 * width || line.x1 - right < 0.18 * width) continue;
+      gaps.push({ left, right, y: line.y });
+    }
+  }
+  const groups = cluster1d(gaps, (gap) => gap.right, 3).sort((a, b) => b.items.length - a.items.length);
+  for (const { key, items } of groups) {
+    const baselines = cluster1d(items, (gap) => gap.y, 3);
+    if (baselines.length < 6 || baselines.at(-1).key - baselines[0].key < 45) continue;
+    const edges = items.map((gap) => gap.left).sort((a, b) => a - b);
+    const cut = (edges[Math.floor((edges.length - 1) * 0.85)] + key) / 2;
+    if (cut >= 0.26 * width && cut <= 0.74 * width) return cut;
+  }
+  return null;
+}
+
+function tablePanels(tables, width) {
+  const candidates = tables.filter(({ bbox: b, rows }) =>
+    rows.length >= 3 && b.x1 - b.x0 >= 0.18 * width && b.x1 - b.x0 <= 0.51 * width);
+  const groups = cluster1d(candidates, (t) => t.bbox.x0, 8);
+  if (groups.length < 2 || groups.length > 3 || groups.some(({ items }) => items.length < 2)) return null;
+  const panels = groups.map(({ items }) => ({
+    items,
+    x0: Math.min(...items.map(({ bbox }) => bbox.x0)),
+    x1: Math.max(...items.map(({ bbox }) => bbox.x1)),
+    y0: Math.min(...items.map(({ bbox }) => bbox.y0)),
+    y1: Math.max(...items.map(({ bbox }) => bbox.y1)),
+  }));
+  if (panels.some((p, i) => i && p.x0 < panels[i - 1].x1 + 6) ||
+      Math.min(...panels.map((p) => p.y1)) - Math.max(...panels.map((p) => p.y0)) < 75) return null;
+  return panels;
+}
+
+function orderTablePanels(lines, panels, scale) {
+  const top = Math.min(...panels.map((p) => p.y0)) - 2.8 * scale.body;
+  const bottom = Math.max(...panels.map((p) => p.y1));
+  const cuts = panels.slice(1).map((p, i) => (p.x0 + panels[i].x1) / 2);
+  const column = (x) => cuts.filter((cut) => x > cut).length;
+  const sorted = (items) => items.sort((a, b) => a.y - b.y || a.x0 - b.x0);
+  const before = [], after = [], inBand = [];
+  for (const line of lines) {
+    if (line.y < top) before.push(line);
+    else if (line.y > bottom) after.push(line);
+    else inBand.push(line);
+  }
+  const wordsByColumn = panels.map(() => []);
+  const markersByColumn = panels.map(() => []);
+  for (const line of inBand) {
+    if (!line.words.length || line._owned) {
+      markersByColumn[column(line.x0)].push(line);
+      continue;
+    }
+    for (const word of line.words) wordsByColumn[column((word.x0 + word.x1) / 2)].push(word);
+  }
+  return [...sorted(before), ...panels.flatMap((_, i) => sorted([
+    ...markersByColumn[i], ...groupLines(wordsByColumn[i]),
+  ]).map((line) => ({ ...line, _column: i, _cw: panels[i].x1 - panels[i].x0 }))), ...sorted(after)];
+}
+
+function columnOrder(lines, width, height, consumedMap, formMap, allowProseSplit) {
   const WIDE = 0.75 * width;
   const isVisualMarker = (l) => !!(l._figure || l._imgNote || l._caption);
-  const isWide = (l) => isVisualMarker(l) ? (l.x1 - l.x0 >= WIDE) : (l.x1 - l.x0 >= WIDE || consumedMap.has(l));
-  // Infer columns from text, then place figures and captions in the same order.
+  const isConsumed = (l) => consumedMap.has(l);
+  const gutter = allowProseSplit ? proseGutter(lines.filter((l) => !isVisualMarker(l) && !isConsumed(l) && !formMap.has(l)), width) : null;
+  const crossesGutter = (l) => gutter !== null && l.x0 < gutter - 0.09 * width && l.x1 > gutter + 0.09 * width;
+  const isPageNumber = (l) => gutter !== null && l.y >= 0.9 * height &&
+    Math.abs((l.x0 + l.x1) / 2 - width / 2) <= 0.04 * width && /^\d+$/.test(l.text);
+  const isWide = (l) => l.x1 - l.x0 >= WIDE || (!isVisualMarker(l) && isConsumed(l)) ||
+    crossesGutter(l) || isPageNumber(l) || (gutter !== null && formMap.has(l));
   const body = lines.filter((l) => !isVisualMarker(l) && !isWide(l));
-  if (body.length < 6) return null;
+  if (gutter === null && body.length < 6) return null;
 
   const ivs = body.map((l) => [l.x0, l.x1]).sort((a, b) => a[0] - b[0]);
   const merged = [];
@@ -232,8 +302,9 @@ function columnOrder(lines, width, consumedMap) {
     else merged.push([a, b]);
   }
   const minGutter = Math.max(10, 0.05 * width);
-  const cuts = [];
+  const cuts = gutter === null ? [] : [gutter];
   for (let i = 1; i < merged.length; i++) {
+    if (gutter !== null) break;
     if (merged[i][0] - merged[i - 1][1] >= minGutter) cuts.push((merged[i][0] + merged[i - 1][1]) / 2);
   }
   if (cuts.length === 0 || cuts.length > 3) return null;
@@ -245,7 +316,7 @@ function columnOrder(lines, width, consumedMap) {
   const colIdx = (l) => columnForX((l.x0 + l.x1) / 2);
   const perCol = new Array(cuts.length + 1).fill(0);
   for (const l of body) perCol[colIdx(l)]++;
-  if (perCol.some((n) => n > 0 && n < 4)) return null;
+  if (gutter === null && perCol.some((n) => n > 0 && n < 4)) return null;
 
   const ordered = [];
   let band = [];
@@ -257,16 +328,36 @@ function columnOrder(lines, width, consumedMap) {
       if (!groups.has(ci)) groups.set(ci, []);
       groups.get(ci).push(l);
     }
-    for (const [ci, ls] of [...groups].sort((a, b) => a[0] - b[0])) {
+    for (const [ci, original] of [...groups].sort((a, b) => a[0] - b[0])) {
       const colL = ci === 0 ? 0 : cuts[ci - 1];
       const colR = ci === cuts.length ? width : cuts[ci];
-      for (const l of ls) if (!l._figure) l._cw = colR - colL;
+      const ls = gutter === null ? original : [
+        ...groupLines(original.filter((l) => !isVisualMarker(l)).flatMap((l) => l.words)),
+        ...original.filter(isVisualMarker),
+      ];
       ls.sort((x, y) => x.y - y.y || x.x0 - y.x0);
-      ordered.push(...ls);
+      for (const line of ls) {
+        line._cw = colR - colL;
+        if (gutter !== null) line._column = ci;
+        ordered.push(line);
+      }
     }
     band = [];
   };
-  for (const l of [...lines].sort((a, b) => a.y - b.y || a.x0 - b.x0)) {
+  const fragments = lines.flatMap((line) => {
+    if (gutter === null || isVisualMarker(line) || isConsumed(line) || formMap.has(line)) return [line];
+    const index = line.words.findIndex((w) => w.x0 >= gutter);
+    if (index <= 0 || line.words[index - 1].x1 > gutter ||
+        line.words[index].x0 - line.words[index - 1].x1 < Math.max(6, 0.65 * line.size)) return [line];
+    return [line.words.slice(0, index), line.words.slice(index)].map((words) => {
+      const part = { ...line, words, x0: words[0].x0, x1: Math.max(...words.map((w) => w.x1)),
+        y: mean(words.map((w) => w.y)), size: Math.max(...words.map((w) => w.size)),
+        mono: words.every((w) => w.mono) };
+      part.text = joinLineText(part);
+      return part;
+    });
+  });
+  for (const l of fragments.sort((a, b) => a.y - b.y || a.x0 - b.x0)) {
     if (isWide(l)) {
       flushBand();
       ordered.push(l);
@@ -275,7 +366,7 @@ function columnOrder(lines, width, consumedMap) {
     }
   }
   flushBand();
-  return ordered.length === lines.length ? ordered : null;
+  return ordered;
 }
 
 export function computeDocScale(allLines) {
@@ -352,7 +443,7 @@ function mergeStackedRail(lines, width) {
 }
 
 export function buildPageLayout(pageCtx, scale, opts = {}) {
-  const { borderless: detectBorderless = true } = opts;
+  const { borderless: detectBorderless = true, emittedWords } = opts;
   const { segments, words, width, height, fills } = pageCtx;
   const lookupTables = extractLookupTables(pageCtx);
   const lookupWords = new Set(lookupTables.flatMap((t) => [...t.consumed]));
@@ -367,7 +458,7 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
     const rest = l.words.filter((w) => !lookupWords.has(w));
     return rest.length === l.words.length ? [l] : groupLines(rest, segments.v, width);
   });
-  const pageLines = formPage ? mergeStackedRail(mainLines, width) : mainLines;
+  let pageLines = formPage ? mergeStackedRail(mainLines, width) : mainLines;
   // Scans need a wider tolerance for fragmented rules.
   const segTol = pageCtx.fills?.length || pageCtx.curves?.length || pageCtx.primitives?.length ? 4 : 14;
   let ruled;
@@ -389,7 +480,33 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
   }
   const overlapsLookup = (b) => b && lookupTables.some(({ bbox: a }) =>
     Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) + 3 && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0) + 3);
+  const extended = ruled.filter((table) => table.continuedHeader);
+  ruled = ruled.filter((table) => table.continuedHeader || !extended.some(({ bbox: a }) => {
+    const b = table.bbox;
+    return Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) >= 0.95 * (a.x1 - a.x0) &&
+      b.y0 >= a.y0 - 2 && b.y1 <= a.y1 + 2;
+  }));
   ruled = ruled.filter(({ bbox: b }) => !inPanel({ ...b, y: (b.y0 + b.y1) / 2 }) && !overlapsLookup(b));
+  const primary = ruled.filter((table, index) => !ruled.slice(0, index).some((earlier) =>
+    ['x0', 'x1', 'y0', 'y1'].every((edge) => Math.abs(earlier.bbox[edge] - table.bbox[edge]) <= 2)));
+  const panelsForOrder = lookupTables.length ? null : tablePanels(primary, width);
+  const positionedTables = panelsForOrder?.flatMap((panel) => panel.items) ?? [];
+  if (positionedTables.length) {
+    ruled = ruled.filter(({ bbox: b }) => !positionedTables.some(({ bbox: a }) => {
+      const overlapX = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+      const overlapY = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+      return overlapX >= 0.9 * (b.x1 - b.x0) && overlapY >= 0.85 * (b.y1 - b.y0);
+    }));
+    const claimed = new Set(words.filter((word) => positionedTables.some(({ bbox: b }) => {
+      const x = (word.x0 + word.x1) / 2;
+      return x >= b.x0 && x <= b.x1 && word.y >= b.y0 && word.y <= b.y1;
+    })));
+    for (const word of claimed) emittedWords?.add(word);
+    pageLines = pageLines.flatMap((line) => {
+      const remaining = line.words.filter((word) => !claimed.has(word));
+      return remaining.length === line.words.length ? [line] : groupLines(remaining);
+    });
+  }
   const consumedMap = new Map();
   for (const l of pageLines) {
     const cx = (l.x0 + l.x1) / 2;
@@ -397,7 +514,8 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
     for (const t of ruled) {
       if (cx > t.bbox.x0 - 2 && cx < t.bbox.x1 + 2 && cy > t.bbox.y0 - 2 && cy < t.bbox.y1 + 2) {
         // Keep boxed section tabs separate from the table beside them.
-        if (l.x0 <= t.bbox.x0 + 14 && l.x1 - l.x0 <= 120 && l.words.length <= 4) continue;
+        if (l.x0 <= t.bbox.x0 + 14 && l.x1 - l.x0 <= 120 && l.words.length <= 4 &&
+            !t.rows[0]?.some((cell) => cell.trim() === l.text.trim())) continue;
         consumedMap.set(l, t);
         break;
       }
@@ -448,25 +566,40 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
   const isPanelCaption = (line) => captionedFigures.some(({ bbox }) => line.text === bbox.caption &&
     line.y >= bbox.y1 - 32 && line.y <= bbox.y1 + (bbox.circuit ? 40 : 26));
   const isCaption = (line) => !consumedMap.has(line) && captionRe.test(String(line.text || '').trim());
-  const captionLines = pageLines.filter((line) => !isPanelCaption(line) && isCaption(line));
-  const contentLines = pageLines.filter((line) => !isPanelCaption(line) && !isCaption(line));
-  const captionMarkers = captionLines.map((line) => ({
-    _caption: true,
-    caption: String(line.text || '').trim(),
-    x0: line.x0,
-    x1: line.x1,
-    y: line.y,
-    size: 1,
-    words: [],
-    text: '',
-  }));
+  const captionLines = new Set();
+  const captionMarkers = [];
+  for (const [i, line] of pageLines.entries()) {
+    if (isPanelCaption(line) || !isCaption(line)) continue;
+    captionLines.add(line);
+    for (const word of line.words) emittedWords?.add(word);
+    let caption = line.text.trim();
+    const next = pageLines[i + 1];
+    if (next && !consumedMap.has(next) && !isCaption(next) && !isPanelCaption(next) &&
+        line.x1 - line.x0 > 0.45 * width && !/[.!?]$/.test(caption) &&
+        Math.abs(next.x0 - line.x0) <= 0.5 * line.size &&
+        Math.abs(next.size - line.size) <= 0.15 * line.size &&
+        next.y > line.y && next.y - line.y <= 1.45 * line.size &&
+        next.x1 <= line.x1 + 2) {
+      caption += ' ' + next.text.trim();
+      captionLines.add(next);
+      for (const word of next.words) emittedWords?.add(word);
+    }
+    captionMarkers.push({ _caption: true, caption, x0: line.x0, x1: line.x1, y: line.y, size: 1, words: [], text: '' });
+  }
+  const contentLines = pageLines.filter((line) => !isPanelCaption(line) && !captionLines.has(line));
   const visualMarkers = [
+    ...positionedTables.map((table) => ({
+      _table: table, x0: table.bbox.x0, x1: table.bbox.x1, y: table.bbox.y0, size: 1, words: [], text: '',
+    })),
     ...figs.map((fig) => ({ _figure: fig, x0: fig.bbox.x0, x1: fig.bbox.x1, y: fig.bbox.y0, size: 1, words: [], text: '' })),
     ...imgNotes.map((note) => ({ ...note, _imgNote: true })),
     ...captionMarkers,
   ];
-  const ordered = columnOrder([...contentLines, ...visualMarkers].sort((a, b) => a.y - b.y || a.x0 - b.x0), width, consumedMap);
-  const lines = ordered || [...contentLines, ...visualMarkers].sort((a, b) => a.y - b.y || a.x0 - b.x0);
+  const layoutLines = [...contentLines, ...visualMarkers];
+  const ordered = panelsForOrder
+    ? orderTablePanels(layoutLines.map((line) => consumedMap.has(line) || formMap.has(line) ? { ...line, _owned: line } : line), panelsForOrder, scale)
+    : columnOrder(layoutLines, width, height, consumedMap, formMap, !formPage);
+  const lines = ordered || layoutLines.sort((a, b) => a.y - b.y || a.x0 - b.x0);
   const lookupOrder = [...lookupTables].sort((a, b) => a.bbox.y0 - b.bbox.y0);
   for (let i = 0; i < lookupOrder.length;) {
     const start = lookupOrder[i].bbox.y0;
@@ -571,9 +704,20 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
       return;
     }
     const seq = [];
-    for (const line of run) {
+    for (let i = 0; i < run.length; i++) {
+      const line = run[i];
+      const equation = run[i + 1];
+      const fraction = recoverDisplayFraction(line, equation, segments.h || []);
+      if (fraction) {
+        seq.push({ math: true, lines: [], fraction });
+        for (const word of [...line.words, ...equation.words]) emittedWords?.add(word);
+        i++;
+        continue;
+      }
       const last = seq[seq.length - 1];
-      if (isMathLine(line)) {
+      if (last?.fraction) {
+        seq.push({ math: isMathLine(line), lines: [line] });
+      } else if (isMathLine(line)) {
         if (last && last.math) last.lines.push(line);
         else seq.push({ math: true, lines: [line] });
       } else {
@@ -582,7 +726,9 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
       }
     }
     for (const seg of seq) {
-      if (seg.math) {
+      if (seg.fraction) {
+        blocks.push({ type: 'math', text: seg.fraction, prov: 'texMath' });
+      } else if (seg.math) {
         blocks.push({ type: 'math', text: buildMathText(seg.lines), prov: seg.lines.some((l) => l.words.some((w) => isMathFont(w.font))) ? 'texMath' : 'geometricFallback' });
       } else {
         emitParagraphs(seg.lines);
@@ -635,7 +781,7 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
         line.size >= 1.35 * prev.size || line.size <= 0.72 * prev.size;
       const colW = line._cw || width - 2 * Math.min(72, prev.x0);
       const prevFull = prev.x1 - prev.x0 >= 0.55 * colW;
-      if (!sizeJump && gapY <= 1.75 * prev.size && prevFull) curP.lines.push(line);
+      if (!sizeJump && gapY >= 0 && gapY <= 1.75 * prev.size && prevFull) curP.lines.push(line);
       else {
         paras.push(curP);
         curP = { lines: [line] };
@@ -647,8 +793,11 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
       p.lines.forEach((line, idx) => {
         const t = line.text;
         if (idx === 0) text = t;
-        else if (text.endsWith('-') && /^[a-zà-öø-ÿ]/.test(t)) text = text.slice(0, -1) + t;
+        else if (text.endsWith('-') && /^\p{Ll}/u.test(t)) {
+          text = (/^\p{Ll}+-/u.test(t) ? text : text.slice(0, -1)) + t;
+        }
         else text += ' ' + t;
+        for (const word of line.words) emittedWords?.add(word);
       });
       const l0 = p.lines[0];
       const lN = p.lines[p.lines.length - 1];
@@ -692,6 +841,7 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
     if (!listRun) return;
     const items = listRun;
     listRun = null;
+    for (const line of items) for (const word of line.words) emittedWords?.add(word);
     const baseX = Math.min(...items.map((l) => l.x0));
     blocks.push({
       type: 'list',
@@ -710,8 +860,10 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
     if (!codeRun) return;
     const run = codeRun;
     codeRun = null;
-    if (run.length >= 2) blocks.push({ type: 'code', lines: codeText(run), _y1: run[run.length - 1].y });
-    else pending.push(...run);
+    if (run.length >= 2) {
+      for (const line of run) for (const word of line.words) emittedWords?.add(word);
+      blocks.push({ type: 'code', lines: codeText(run), _y1: run[run.length - 1].y });
+    } else pending.push(...run);
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -723,6 +875,11 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
       continue;
     }
     const line = lines[i];
+    if (i > 0 && line._column !== lines[i - 1]._column) {
+      flushPending();
+      flushList();
+      flushCode();
+    }
     if (line._caption) {
       emitFigure(line);
       continue;
@@ -756,7 +913,7 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
       continue;
     }
 
-    const ruledTable = consumedMap.get(line);
+    const ruledTable = line._table || consumedMap.get(line._owned || line);
     if (ruledTable) {
       flushPending();
       flushList();
@@ -771,13 +928,15 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
           rows: t.rows,
           spans: t.spans,
           meta: t.meta,
+          ...(t.keepColumns || line._table ? { keepColumns: true } : {}),
+          bbox: t.bbox,
           prov: 'plumberGrid',
         });
       }
       continue;
     }
 
-    const formBlock = formMap.get(line);
+    const formBlock = formMap.get(line._owned || line);
     if (formBlock) {
       flushPending();
       flushList();

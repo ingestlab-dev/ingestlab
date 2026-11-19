@@ -1,5 +1,68 @@
 # PDF conversion benchmark
 
+## 150-document corpus
+
+The added corpus lives at `../pdf/corpus-150`. The 50 public PDFs cover
+tax, immigration, electronics, research, and financial reports. The public
+manifest records source URLs and SHA-256 hashes. The 100 generated PDFs
+cover 10 domains and include merged cells, staggered table panels, missing
+rules, shuffled text drawing order, landscape pages, fillable widgets,
+continued tables, and raster scans with a margin imprint.
+
+| Corpus | Documents | Pages | Verified |
+| --- | ---: | ---: | --- |
+| Original fixtures | 18 | 818 | All exported. Regression checks cover Form 1040 section order, Schedule D and adjacent tax tables, and Form 1040-X column assignment. |
+| Added public PDFs | 50 | 908 | All exported. Three pages with no text in the annual report were verified blank. |
+| Generated vector PDFs | 90 | 100 | 270/270 tables in order, 6,480/6,480 cells, 290/290 spans, 20/20 widget states or values. |
+| Generated scan PDFs | 10 | 10 | 20/20 tables in order, 415/480 cells, 20/20 spans. |
+
+The synthetic checks compare each PDF with its generated ground truth.
+They compare table sequence, cell coordinates and text, merged spans, and
+widget states or values. Scan tables can also be identified by source
+bounds, so OCR typos count toward cell accuracy independently of order.
+The public corpus run verifies conversion and page coverage. Selected
+real forms have separate content and order assertions in the test suite.
+
+```sh
+node tools/fetch-pdf-corpus.mjs
+python3 tools/make-pdf-corpus.py
+node tools/audit-pdf-corpus.mjs ../pdf/corpus-150/synthetic output/pdf/corpus-150/audit.json output/pdf/corpus-150/synthetic --assert-vector
+```
+
+The fixture generator uses ReportLab, Pillow, and Poppler. Outputs for the
+original and public fixtures are in `output/pdf/corpus-150/original`
+and `output/pdf/corpus-150/real`.
+
+## Layout fidelity
+
+The compact exports from the layout audit are in `output/pdf/layout-audit`.
+The checks cover reading order, cell contents, control states, caption
+continuations, and equation structure.
+
+| Fixture | Layout check |
+| --- | --- |
+| [ACL P19-1433](https://aclanthology.org/P19-1433.pdf) | Page 1 reads the left column before the right and keeps wrapped words in their paragraph. |
+| [NXP PCF8574](https://www.nxp.com/docs/en/data-sheet/PCF8574_PCF8574A.pdf) | Page 4 keeps all 17 pin rows under one four-column header. |
+| [USCIS I-9](https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf) | All four citizenship widgets stay unchecked, and the first section heading remains intact. |
+| [IRS 941](https://www.irs.gov/pub/irs-pdf/f941.pdf) | The wages label stays on line 2. |
+| [CFPB Closing Disclosure](https://files.consumerfinance.gov/f/201311_cfpb_kbyo_closing-disclosure.pdf) | Printed marks stay with the Conventional and Property Taxes options. FHA remains unchecked. |
+| Local Transformer paper | Figure 2 keeps both caption lines. Equation 1 preserves the fraction, exponent, radical, and subscript. |
+| Local Vietnamese Land Law scan | Page 2 yields 589 OCR tokens after cropping the separated margin imprint (187 before). The 222 spurious prose tables from the first pass are gone. |
+
+Save the public fixtures as `acl-two-column.pdf`, `nxp-pcf8574.pdf`,
+`uscis-i9.pdf`, `irs-f941.pdf`, and `cfpb-closing-disclosure.pdf`.
+Publisher URLs may serve revised editions.
+
+```sh
+INGESTLAB_PUBLIC_PDF_DIR=/path/to/public-fixtures npm test
+INGESTLAB_OCR_CACHE=/tmp/ingestlab-ocr-layout node tools/convert-pdf-folder.mjs ../pdf output/pdf/layout-audit
+node tools/benchmark-pdf.mjs ../pdf output/pdf/layout-audit --compact
+```
+
+The remaining errors include some form rows with irregular cell boundaries
+and character substitutions in noisy scans. Evaluate those against the
+source page before using the output for calculations or form completion.
+
 ## Demo regression retest
 
 All 18 local PDFs (818 pages) were uploaded via Chromium after separating PDF
