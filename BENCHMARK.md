@@ -1,5 +1,18 @@
 # PDF conversion benchmark
 
+## Local Performance & Payload Reduction
+
+Measured locally in the browser playground with 0 bytes of input uploaded to any server.
+
+| Input Size | Pipeline Mode | Local Latency | Payload Reduction |
+| :--- | :--- | ---: | ---: |
+| 204 KB (203,977 B) | Native PDF to GFM | 85.4 ms | 98% |
+| 503 KB (503,284 B) | Native PDF to GFM | 191.1 ms | 95% |
+| 985 KB (985,277 B) | Native PDF to GFM | 386.9 ms | 92% |
+| 4.15 MB (4,150,801 B) | Native PDF to GFM | 2.15 s | 96% |
+| 2.22 MB (2,215,244 B) | Image / Scan OCR | 3.89 s | 98% |
+| 4.86 MB (4,862,240 B) | Image / Scan OCR | 23.23 s | 97% |
+
 ## 150-document corpus
 
 The added corpus lives at `../pdf/corpus-150`. The 50 public PDFs cover
