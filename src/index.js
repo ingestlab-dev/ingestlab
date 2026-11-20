@@ -13,7 +13,7 @@ import { pageOrderedBlocks, toRagBlocks, toRagChunks } from './rag.js';
 export { rankRagChunks } from './rag.js';
 export { OCR_LANGUAGE_CODES } from './ocrLanguages.js';
 
-export const VERSION = '1.0.1';
+export const VERSION = '1.1.3';
 
 const DEFAULT_USD_PER_PAGE_CLOUD = 0.003;
 

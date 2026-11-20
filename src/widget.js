@@ -5,9 +5,9 @@ import { sniffKind } from './kind.js';
 import { applyImageMode } from './markdown.js';
 
 const DEFAULT_PDFJS_SRC =
-  'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.5.438/build/pdf.min.mjs';
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/build/pdf.min.mjs';
 const DEFAULT_STDFONTS =
-  'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.5.438/standard_fonts/';
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/standard_fonts/';
 
 let sharedLab = null;
 async function getLab() {

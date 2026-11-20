@@ -64,11 +64,11 @@
     "node": ">=18"
   },
   "peerDependencies": {
-    "pdfjs-dist": ">=4.0.0 <7"
+    "pdfjs-dist": "~4.8.69"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
-    "pdfjs-dist": "^6.5.438",
+    "pdfjs-dist": "~4.8.69",
     "typescript": "^7.0.2"
   },
   "dependencies": {

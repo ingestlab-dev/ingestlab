@@ -25,9 +25,9 @@ your package manager requires you to install peer dependencies explicitly.
 | `lab.parse(bytes, opts)` | PDF bytes as a `Uint8Array` or Node.js `Buffer` | Markdown, page blocks, controls, figures, assets, and stats |
 | `lab.ingest(input, opts)` | `File`, `Blob`, `Uint8Array`, or `ArrayBuffer` | A PDF, video, or image result selected by `kind` |
 
-Wrap an `ArrayBuffer` in `new Uint8Array(buffer)` when calling `parse()`
-on version 1.0.1. `ingest()` accepts the buffer directly and identifies the
-format from its bytes.
+Wrap an `ArrayBuffer` in `new Uint8Array(buffer)` when calling `parse()`.
+`ingest()` accepts the buffer directly and identifies the format from its
+bytes.
 
 The return fields vary by `kind`. All `ingest()` results include `metrics`
 with input and output size, latency, backend, cache information, and an
@@ -311,9 +311,10 @@ standard font directory. The widget supports `ocr-src`, `ocr-worker-src`,
 
 ## Runtime and troubleshooting
 
-- **Node.js** supports PDF and image ingestion. Use a Node.js version
-  compatible with your PDF.js peer. For example, PDF.js 6.5.438 declares
-  support for Node.js 22.13+ on the 22.x line or Node.js 24+.
+- **Node.js** supports PDF and image ingestion from Node.js 18. The default
+  `pdfjs-dist@4.8.x` peer supports Node.js 18 and newer. If you inject a newer
+  PDF.js module, use the Node.js version required by that module and match its
+  worker, standard-font, CMap, and WASM assets.
 - **PDF.js worker errors** can occur when the worker and PDF.js module use
   different versions. For the direct API, set
   `pdfjs.GlobalWorkerOptions.workerSrc` and pass that module as

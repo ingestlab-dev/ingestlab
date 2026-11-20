@@ -613,30 +613,31 @@ function extractSegments(page, pdfjs, viewport, pageW, pageH) {
         const coords = args[1];
         if (!ops || !coords) continue;
         let k = 0;
+        let c = 0;
         const sub = runSubpath(() => {
           if (k >= ops.length) return null;
           const op = ops[k++];
-          if (op === OPS.moveTo) return { x: coords[k++], y: coords[k++], curve: null, move: true };
-          if (op === OPS.lineTo) return { x: coords[k++], y: coords[k++], curve: null };
+          if (op === OPS.moveTo) return { x: coords[c++], y: coords[c++], curve: null, move: true };
+          if (op === OPS.lineTo) return { x: coords[c++], y: coords[c++], curve: null };
           if (op === OPS.curveTo) {
             const r = {
-              x: coords[k + 4],
-              y: coords[k + 5],
-              curve: { c1: [coords[k], coords[k + 1]], c2: [coords[k + 2], coords[k + 3]] },
+              x: coords[c + 4],
+              y: coords[c + 5],
+              curve: { c1: [coords[c], coords[c + 1]], c2: [coords[c + 2], coords[c + 3]] },
             };
-            k += 6;
+            c += 6;
             return r;
           }
           if (op === OPS.curveTo1 || op === OPS.curveTo2) {
-            const r = { x: coords[k + 2], y: coords[k + 3], curve: { c1: [coords[k], coords[k + 1]], c2: [coords[k], coords[k + 1]] } };
-            k += 4;
+            const r = { x: coords[c + 2], y: coords[c + 3], curve: { c1: [coords[c], coords[c + 1]], c2: [coords[c], coords[c + 1]] } };
+            c += 4;
             return r;
           }
           if (op === OPS.rectangle) {
-            const x = coords[k++];
-            const y = coords[k++];
-            const w = coords[k++];
-            const hh = coords[k++];
+            const x = coords[c++];
+            const y = coords[c++];
+            const w = coords[c++];
+            const hh = coords[c++];
             if (w * hh < 0.45 * pageW * pageH) {
               const sub0 = {
                 pts: [x, y, x + w, y, x + w, y + hh, x, y + hh, x, y].map((v) => v),
@@ -656,7 +657,6 @@ function extractSegments(page, pdfjs, viewport, pageW, pageH) {
               noteBox(dpts[0], dpts[1], dpts[4], dpts[5]);
               if (pend.length < 200) pend.push({ pts: dpts, hasCurve: false, closed: true });
             }
-            cur = null;
             return { noJoin: true };
           }
           if (op === OPS.closePath) return { close: true };

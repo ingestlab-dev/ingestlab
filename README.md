@@ -50,8 +50,9 @@ to numbered rows when their positions and text support the link.
 See the [RAG usage guide](docs/usage.md#retrieval-and-question-answering)
 and [retrieval benchmark](BENCHMARK.md#retrieval-benchmark).
 
-Use a Node.js version supported by the installed PDF.js peer. For example,
-`pdfjs-dist@6.5.438` requires Node.js 22.13+ on the 22.x line, or Node.js 24+.
+Node.js support starts at 18 with the default `pdfjs-dist@4.8.x` peer. If you
+inject a newer PDF.js module, use the Node.js version required by that module
+and keep its worker and standard-font assets on the same version.
 
 ### Faithful and RAG profiles
 
