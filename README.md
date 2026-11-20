@@ -14,19 +14,6 @@ and image optimization.**
 Files are processed locally. The browser may download PDF.js, OCR models, or
 preview libraries separately.
 
-## Package size
-
-The published npm tarball is about **332 KB compressed** and **1.01 MB
-unpacked** across 72 files. Bundlephobia reports the browser package at about
-**80.5 KB minified** and **32.2 KB gzip** because it bundles the published
-entry and lazy chunks together.
-
-The initial browser entry is smaller when built with the repository code-splitting
-configuration. The local `npm run bundle:size` gate reports **17.5 KB gzip**
-for the initial entry, with the video engine in a lazy chunk. This number
-excludes external PDF.js, OCR, canvas, and other runtime dependencies. The two
-measurements answer different questions.
-
 ## Documentation
 
 The usage guide covers supported runtimes, API options and results, multilingual
