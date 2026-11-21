@@ -216,9 +216,15 @@ export interface RagChunk {
   tableRowRange?: { start: number; end: number };
 }
 
+export type DocumentElementType =
+  | 'text' | 'heading' | 'paragraph' | 'list' | 'table' | 'table_cell'
+  | 'formula' | 'figure' | 'chart' | 'diagram' | 'caption' | 'footnote'
+  | 'form_field' | 'checkbox' | 'code' | 'chemical_equation'
+  | 'chemical_structure' | 'header' | 'footer' | 'stamp' | string;
+
 export interface DocumentGraphElement {
   id: string;
-  type: string;
+  type: DocumentElementType;
   text: string;
   page: number;
   blockIndex: number;
@@ -233,6 +239,18 @@ export interface DocumentGraphElement {
   children?: string[];
   kind?: string;
   kind2?: string | null;
+  reconstruction?: string;
+  mermaid?: string | null;
+  tableMd?: string | null;
+  visualContent?: VisualContent;
+  labels?: string[];
+}
+
+export interface DocumentGraphRelation {
+  from: string;
+  to?: string;
+  type: string;
+  value?: string;
 }
 
 export interface DocumentGraph {
@@ -240,6 +258,7 @@ export interface DocumentGraph {
   fingerprint?: string;
   elements: DocumentGraphElement[];
   pages: { page: number; width?: number; height?: number; elements: string[] }[];
+  relations: DocumentGraphRelation[];
 }
 
 export function rankRagChunks(chunks: RagChunk[], query: string, options?: {
@@ -319,6 +338,8 @@ export interface ParseStats {
   imageOcrRegions: number;
   /** Pages where embedded-image OCR could not run to completion. */
   imageOcrFailed: number;
+  /** Mean Tesseract confidence for OCR pages, or null when no OCR ran. */
+  ocrConfidence: number | null;
   /** vector figure classification (not a pixel-preservation guarantee) */
   figures: number;
   /** structured form blocks (form_grid / form_matrix / worksheet / kv_panel / rail) */

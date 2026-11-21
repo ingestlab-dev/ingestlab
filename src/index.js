@@ -243,6 +243,7 @@ export class IngestLab {
           if (r && r.words.length) {
             data.words = r.words;
             data.segments = r.segments;
+            data.ocrConfidence = r.confidence;
             ocrPages++;
           } else if (r) {
             scannedUnread++;
@@ -264,6 +265,7 @@ export class IngestLab {
             if (ocr.words.length) {
               data.words = ocr.words;
               data.segments = ocr.segments;
+              data.ocrConfidence = ocr.confidence;
               ocrPages++;
             } else {
               scannedUnread++;
@@ -515,6 +517,10 @@ export class IngestLab {
       figures: blocks.filter((b) => b.type === 'figure').length,
       forms: blocks.filter((b) => b.form || ['form_grid', 'form_matrix', 'worksheet', 'kv_panel', 'form_section'].includes(b.type)).length,
       ocrPages,
+      ocrConfidence: pageData.filter((page) => page.ocr).length
+        ? pageData.filter((page) => page.ocr).reduce((sum, page) => sum + (page.ocrConfidence ?? 0), 0) /
+          pageData.filter((page) => page.ocr).length
+        : null,
       ocrFailed,
       scannedUnread,
       visualFailed,

@@ -41,7 +41,8 @@
     "test:media:video": "node test/storyboard-video.test.mjs",
     "test:rag:corpus": "node tools/audit-rag-corpus.mjs ../pdf/corpus-150",
     "benchmark:rag": "node tools/benchmark-rag.mjs ../pdf",
-    "benchmark:rag:corpus": "node tools/benchmark-rag-corpus.mjs ../pdf/corpus-150"
+    "benchmark:rag:corpus": "node tools/benchmark-rag-corpus.mjs ../pdf/corpus-150",
+    "benchmark:graph": "node tools/benchmark-document-graph.mjs ../pdf/corpus-150/synthetic"
   },
   "keywords": [
     "pdf",

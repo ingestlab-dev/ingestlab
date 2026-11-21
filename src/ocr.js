@@ -487,13 +487,17 @@ export async function ocrPage(page, pdfjs, opts = {}) {
       size: Math.max(1, (x.bbox.y1 - x.bbox.y0) / RENDER_SCALE),
       ocrLine: x.line,
       ocrOrder: x.order,
+      confidence: Math.max(0, Math.min(1, x.conf / 100)),
       mono: false,
     }));
   try {
     render.canvas.width = 0;
     render.canvas.height = 0;
   } catch {}
-  return { words, segments };
+  const confidence = words.length
+    ? words.reduce((sum, word) => sum + word.confidence, 0) / words.length
+    : 0;
+  return { words, segments, confidence };
 }
 
 export async function ocrImageRegions(doc, pageBlocks, pageData, langs, onProgress, ocrRuntime) {
