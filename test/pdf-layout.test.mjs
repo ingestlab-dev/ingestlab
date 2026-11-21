@@ -6,6 +6,7 @@ import { buildPageLayout, groupLines } from '../src/layout.js';
 import { contentRect } from '../src/ocr.js';
 import { detectRuledTables, findBorderlessTable } from '../src/tables.js';
 import { pageOrderedBlocks } from '../src/rag.js';
+import { renderPage } from '../src/render.js';
 
 const word = (str, x, y, w = 18) => ({ str, x0: x, x1: x + w, y, size: 10, mono: false });
 const line = (str, x, y, drift) => str.split(' ').map((part, i) => word(part, x + i * (25 + drift), y, 20));
@@ -84,6 +85,31 @@ assert.ok(crop.left < 70 && crop.left + crop.width >= 538 && crop.left + crop.wi
 paint(500, 586, 120, 131);
 const withConnectedText = contentRect({ w, h, data });
 assert.ok(withConnectedText.left + withConnectedText.width >= 594);
+
+// Image-only scan pages must avoid the native PDF.js canvas image path. Some
+// RGB XObjects crash @napi-rs/canvas before JavaScript can catch an exception.
+let pdfRenderCalled = false;
+const scanPage = {
+  getViewport: () => ({ width: 612, height: 792 }),
+  getOperatorList: async () => ({ argsArray: [['scan-image', 1326, 1716]] }),
+  objs: {
+    get: (_name, callback) => callback({
+      kind: 2,
+      width: 1326,
+      height: 1716,
+      data: new Uint8Array(1326 * 1716 * 3).fill(255),
+    }),
+  },
+  render: () => {
+    pdfRenderCalled = true;
+    throw new Error('scan image used the unsafe PDF.js canvas path');
+  },
+};
+const scanRender = await renderPage(scanPage, 1);
+assert.equal(pdfRenderCalled, false);
+assert.ok(scanRender.canvas.toBuffer('image/png').length > 100);
+scanRender.canvas.width = 0;
+scanRender.canvas.height = 0;
 
 const publicDir = process.env.INGESTLAB_PUBLIC_PDF_DIR;
 if (publicDir) {
