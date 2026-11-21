@@ -315,6 +315,8 @@ export interface IngestOpts extends ParseOpts {
   /** estimate override: USD saved per PDF page (default 0.003) */
   usdPerPageCloud?: number;
   onProgress?: (ev: ProgressEvent) => void;
+  /** Called once per page after layout, table stitching and recognizers finish. */
+  onPage?: (event: { page: number; pages: number; blocks: Block[]; data: Record<string, unknown> }) => void | Promise<void>;
   docOpts?: Record<string, unknown>;
 }
 
@@ -401,6 +403,10 @@ export interface ParseOpts {
   ocrAutoLang?: boolean;
   /** recognize only the low-res content bbox (skip blank margins); default true */
   ocrRoi?: boolean;
+  /** Retry low-confidence OCR pages with alternate segmentation; default true. */
+  ocrConfidenceRetry?: boolean;
+  /** Mean OCR confidence threshold that triggers the alternate pass. */
+  ocrConfidenceThreshold?: number;
   /** Also OCR and reconstruct supported embedded raster images. Default true. */
   ocrImages?: boolean;
   /** Optional browser Tesseract module and asset URLs. */

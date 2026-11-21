@@ -454,6 +454,23 @@ export async function ocrPage(page, pdfjs, opts = {}) {
     return collectWords(data).filter((word) => word.conf >= 40 && word.str.trim());
   };
   let recognized = await recognize();
+  const confidenceOf = (words) => words.length
+    ? words.reduce((sum, word) => sum + word.conf, 0) / (words.length * 100)
+    : 0;
+  const confidenceThreshold = opts.ocrConfidenceThreshold ?? 0.62;
+  let confidenceRetry = false;
+  if (opts.ocrConfidenceRetry !== false && confidenceOf(recognized) < confidenceThreshold) {
+    try {
+      await worker.setParameters({ tessedit_pageseg_mode: '6' });
+      const retry = await recognize();
+      const score = (words) => confidenceOf(words) * Math.log2(words.length + 1);
+      if (score(retry) > score(recognized)) recognized = retry;
+      confidenceRetry = true;
+    } catch {
+    } finally {
+      await worker.setParameters({ tessedit_pageseg_mode: '3' });
+    }
+  }
   if (needsRuleRetry(recognized.length, segments)) {
     const data = new Uint8Array(gray.w * gray.h);
     for (let i = 0; i < data.length; i++) data[i] = gray.data[i * 4] < 220 ? 0 : 255;
@@ -501,7 +518,7 @@ export async function ocrPage(page, pdfjs, opts = {}) {
   const confidence = words.length
     ? words.reduce((sum, word) => sum + word.confidence, 0) / words.length
     : 0;
-  return { words, segments, confidence };
+  return { words, segments, confidence, confidenceRetry };
 }
 
 export async function ocrImageRegions(doc, pageBlocks, pageData, langs, onProgress, ocrRuntime) {

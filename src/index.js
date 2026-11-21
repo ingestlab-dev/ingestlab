@@ -181,7 +181,12 @@ export class IngestLab {
         ocrAttempts++;
         onProgress({ stage: 'ocr', page: p, pages });
         try {
-          const ocr = await ocrPage(page, this.pdfjs, { ocrLangs: o.ocrLangs, ocrRuntime: o.ocrRuntime });
+          const ocr = await ocrPage(page, this.pdfjs, {
+            ocrLangs: o.ocrLangs,
+            ocrRuntime: o.ocrRuntime,
+            ocrConfidenceRetry: o.ocrConfidenceRetry,
+            ocrConfidenceThreshold: o.ocrConfidenceThreshold,
+          });
           if (ocr.words.length) {
             data = {
               width: data.width,
@@ -199,6 +204,8 @@ export class IngestLab {
               diags: [],
               scannedPage: true,
               ocr: true,
+              ocrConfidence: ocr.confidence,
+              ocrConfidenceRetry: ocr.confidenceRetry,
             };
             ocrPages++;
           } else {
@@ -261,7 +268,7 @@ export class IngestLab {
           onProgress({ stage: 'ocr', page: p, pages });
           try {
             const pg = await doc.getPage(p);
-            const ocr = await ocrPage(pg, this.pdfjs, { ocrLangs, ocrRuntime: o.ocrRuntime });
+            const ocr = await ocrPage(pg, this.pdfjs, { ocrLangs, ocrRuntime: o.ocrRuntime, ocrConfidenceRetry: o.ocrConfidenceRetry, ocrConfidenceThreshold: o.ocrConfidenceThreshold });
             pg.cleanup?.();
             const data = pageData[p - 1];
             delete data._pendingOcr;
@@ -482,6 +489,14 @@ export class IngestLab {
     const stitchedPageBlocks = mergeContinuedTables(pageBlocks, { pageData });
     pageBlocks.splice(0, pageBlocks.length, ...stitchedPageBlocks);
     const recognizerResult = await applyRecognizers(pageBlocks, o.recognizers, { pageData, document: doc });
+    for (let pageIndex = 0; pageIndex < pageBlocks.length; pageIndex++) {
+      await o.onPage?.({
+        page: pageIndex + 1,
+        pages,
+        blocks: pageBlocks[pageIndex],
+        data: pageData[pageIndex],
+      });
+    }
     const layoutMs = performance.now() - tLayout0;
 
     const imageOcr = o.ocr && o.ocrImages

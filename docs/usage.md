@@ -51,6 +51,9 @@ const result = await lab.parse(await readFile('form.pdf'), {
   onProgress(event) {
     if (event.stage === 'ocr') console.log(event.ocrDone, event.ocrTotal);
   },
+  onPage({ page, blocks }) {
+    console.log('ready', page, blocks.length);
+  },
 });
 
 await writeFile('form.md', result.markdown);
@@ -75,6 +78,11 @@ for the full result.
 | `documentGraph` | Typed page/block graph with stable IDs, reading order, bbox, confidence, provenance, and table-cell children |
 | `recognizers` | Counts and failures from optional formula, chart, diagram, chemistry, handwriting or low-confidence OCR adapters |
 | `stats` | Counts for pages, tables, forms, OCR, and visual recovery |
+
+`onPage` fires after a page has passed layout, compatible table stitching and
+optional recognizers. It is useful for incremental indexing or UI updates.
+The final `markdown`, `pages` and `documentGraph` still contain the complete
+document.
 
 | Option | Behavior |
 | --- | --- |

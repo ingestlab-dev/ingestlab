@@ -31,7 +31,7 @@
     "demo": "node tools/demo-server.mjs",
     "build": "node tools/build.mjs",
     "prepack": "npm run build",
-    "test": "node test/node.test.mjs && node test/visuals.test.mjs && node test/corpus-regression.test.mjs && node test/visual-variants.test.mjs && node test/pdf-layout.test.mjs && node test/rag-profile.test.mjs && node test/document-graph.test.mjs && node test/recognizer-adapter.test.mjs",
+    "test": "node test/node.test.mjs && node test/visuals.test.mjs && node test/corpus-regression.test.mjs && node test/visual-variants.test.mjs && node test/pdf-layout.test.mjs && node test/rag-profile.test.mjs && node test/document-graph.test.mjs && node test/recognizer-adapter.test.mjs && node test/page-stream.test.mjs",
     "gen:video": "node test/make_sample_video.mjs",
     "bundle:size": "node tools/measure-entry.mjs",
     "types:check": "tsc -p test/tsconfig.json",
@@ -42,7 +42,8 @@
     "test:rag:corpus": "node tools/audit-rag-corpus.mjs ../pdf/corpus-150",
     "benchmark:rag": "node tools/benchmark-rag.mjs ../pdf",
     "benchmark:rag:corpus": "node tools/benchmark-rag-corpus.mjs ../pdf/corpus-150",
-    "benchmark:graph": "node tools/benchmark-document-graph.mjs ../pdf/corpus-150/synthetic"
+    "benchmark:graph": "node tools/benchmark-document-graph.mjs ../pdf/corpus-150/synthetic",
+    "benchmark:performance": "node tools/benchmark-performance.mjs"
   },
   "keywords": [
     "pdf",
