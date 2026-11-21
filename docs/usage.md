@@ -176,6 +176,8 @@ console.log(OCR_LANGUAGE_CODES);
 const result = await lab.parse(await readFile('scan.pdf'), {
   ocrLangs: ['jpn', 'eng'],
   ocrPageLimit: 20,
+  // Return a processed canvas when a scan needs deskew, denoise or thresholding.
+  ocrPreprocess: ({ canvas }) => canvas,
 });
 console.log(result.markdown);
 ```

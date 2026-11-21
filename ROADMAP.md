@@ -20,7 +20,7 @@ every engine.
 | P3.1 | Visual semantics | Convert math text to clean LaTeX | Formula recognizer and Markdown renderer | Native font remapping, fraction recovery, superscript/subscript and TeX normalization are implemented; specialist model scorer remains | IN PROGRESS |
 | P3.2 | Visual semantics | Add mhchem, SMILES/SVG and code-block recognizers | Chemical and code element adapters | Exact syntax validity plus element F1 | TODO |
 | P3.3 | Visual semantics | Reconstruct charts, circuits, diagrams and flowcharts | Table data, relation graph and Mermaid output | Built-in figure reconstruction plus specialist adapter contract; domain scorer remains | IN PROGRESS |
-| P4.1 | OCR | Add orientation, region crop, adaptive threshold and denoise passes | Confidence-aware OCR pipeline | OCR confidence is now exposed per page and in stats; preprocessing passes remain | IN PROGRESS |
+| P4.1 | OCR | Add orientation, region crop, adaptive threshold and denoise passes | Confidence-aware OCR pipeline | OCR confidence, ROI, retry and an `ocrPreprocess` hook are implemented; built-in orientation/dewarp passes remain | IN PROGRESS |
 | P4.2 | OCR | Add language probing, retry policy and figure-label OCR | Adaptive language/model routing | Language probing, rule-aware retry, confidence-triggered alternate pass, cache reuse and figure-label OCR exist; language/model scorer remains | IN PROGRESS |
 | P4.3 | OCR | Add recognizer adapter interface | Local, browser and optional server adapters | Tesseract remains fallback and output schema stays stable | TODO |
 | P5.1 | Tables/forms | Merge continued, borderless, nested and partial-rule tables | Cell graph with rowspan/colspan and continuation links | Compatible continued tables are stitched before Markdown/RAG rendering; merge scoring remains | IN PROGRESS |
@@ -30,7 +30,7 @@ every engine.
 | P6.2 | Performance | Add page streaming, worker pools, page cache and model warm cache | Incremental parse API | `onPage` streaming callback is implemented; worker/page-memory scheduling remains | IN PROGRESS |
 | P6.3 | Performance | Route WebGPU/WASM only when measured beneficial | Capability policy and fallback matrix | Same output, lower measured latency, no mandatory GPU | TODO |
 | P7.1 | Video | Improve scene cuts, shot clustering and keyframe diversity | Adaptive scene timeline | Existing scene/cut/diversity tests pass; production corpus coverage still pending | IN PROGRESS |
-| P7.2 | Video | Add OCR/text density, saliency and optional transcript timestamps | Evidence-ranked keyframes | Text-bearing scene recall and timeline coverage | TODO |
+| P7.2 | Video | Add OCR/text density, saliency and optional transcript timestamps | Evidence-ranked keyframes | Lightweight edge/contrast saliency ranks and annotates context frames; OCR density/transcript adapters remain | IN PROGRESS |
 | P7.3 | Video | Add uniform fallback and scene summary metadata | Stable output for difficult codecs/videos | No empty result, bounded frame gap and deterministic retry | TODO |
 | R1 | Release | Publish benchmark, docs and examples for each profile | Versioned report and API docs | Every claim links to reproducible command and corpus revision | TODO |
 

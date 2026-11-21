@@ -18,7 +18,7 @@ export function samplingInterval(duration, opts) {
 
 export function describeFrame({ data, width, height }) {
   const colors = new Float32Array(data.length / 4 * 3);
-  let energy = 0, mean = 0, bright = 0, clipped = 0;
+  let energy = 0, mean = 0, bright = 0, clipped = 0, contrast = 0;
   for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
     const r = data[i], g = data[i + 1], b = data[i + 2];
     const y = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
@@ -32,7 +32,9 @@ export function describeFrame({ data, width, height }) {
     if (j >= width * 3) energy += Math.abs(y - colors[j - width * 3]);
   }
   const count = width * height;
-  return { colors, mean: mean / count, sharpness: energy / count,
+  const average = mean / count;
+  for (let i = 0; i < colors.length; i += 3) contrast += Math.abs(colors[i] - average);
+  return { colors, mean: average, sharpness: energy / count, textSaliency: Math.min(1, energy / count * 3 + contrast / count * 2),
     blank: bright / count < 0.04 || clipped / count > 0.96 };
 }
 
@@ -53,7 +55,8 @@ function bestFrame(samples, transitions, lo, hi, target, span) {
   for (let i = lo; i <= hi; i++) {
     const { timestampUs, frame } = samples[i];
     const score = -Math.abs(timestampUs - target) / Math.max(span, 1) +
-      Math.min(frame.sharpness, 0.24) * 0.65 - (transitions[i] ? 2 : 0) - (frame.blank ? 3 : 0);
+      Math.min(frame.sharpness, 0.24) * 0.65 + (frame.textSaliency || 0) * 0.18 -
+      (transitions[i] ? 2 : 0) - (frame.blank ? 3 : 0);
     if (score > max) { best = i; max = score; }
   }
   return best;
@@ -154,6 +157,7 @@ export function selectStoryboard(samples, durationUs, options = {}) {
       const index = bestFrame(samples, transitions, lo, hi, center, slice);
       candidates.push({ index, timestampUs: samples[index].timestampUs, sceneId: s.id,
         diffScore: n === 0 ? s.diffScore : diffs[index], isSceneCut: n === 0 && s.id > 0,
+        saliency: samples[index].frame.textSaliency || 0,
         reason: n === 0 ? 'scene' : 'context' });
       lo = hi + 1;
     }
@@ -163,7 +167,7 @@ export function selectStoryboard(samples, durationUs, options = {}) {
             samples[i].frame.blank || transitions[i]) continue;
         if (candidates.some((c) => c.sceneId === s.id && Math.abs(c.timestampUs - samples[i].timestampUs) < o.minGapUs)) continue;
         candidates.push({ index: i, timestampUs: samples[i].timestampUs, sceneId: s.id,
-          diffScore: diffs[i], isSceneCut: false, reason: 'context' });
+          diffScore: diffs[i], saliency: samples[i].frame.textSaliency || 0, isSceneCut: false, reason: 'context' });
       }
     }
   }

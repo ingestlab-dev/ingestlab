@@ -186,6 +186,7 @@ export class IngestLab {
             ocrRuntime: o.ocrRuntime,
             ocrConfidenceRetry: o.ocrConfidenceRetry,
             ocrConfidenceThreshold: o.ocrConfidenceThreshold,
+            ocrPreprocess: o.ocrPreprocess,
           });
           if (ocr.words.length) {
             data = {
@@ -269,7 +270,7 @@ export class IngestLab {
           onProgress({ stage: 'ocr', page: p, pages });
           try {
             const pg = await doc.getPage(p);
-            const ocr = await ocrPage(pg, this.pdfjs, { ocrLangs, ocrRuntime: o.ocrRuntime, ocrConfidenceRetry: o.ocrConfidenceRetry, ocrConfidenceThreshold: o.ocrConfidenceThreshold });
+            const ocr = await ocrPage(pg, this.pdfjs, { ocrLangs, ocrRuntime: o.ocrRuntime, ocrConfidenceRetry: o.ocrConfidenceRetry, ocrConfidenceThreshold: o.ocrConfidenceThreshold, ocrPreprocess: o.ocrPreprocess });
             pg.cleanup?.();
             const data = pageData[p - 1];
             delete data._pendingOcr;

@@ -453,7 +453,13 @@ export async function ocrPage(page, pdfjs, opts = {}) {
   else if (opts.ocrRect && typeof opts.ocrRect === 'object') rect = opts.ocrRect;
   else rect = contentRect(gray);
   // Browser Tesseract accepts a canvas, but not ImageData.
-  const image = () => render.isNode ? render.canvas.toBuffer('image/png') : render.canvas;
+  let processedCanvas = render.canvas;
+  if (typeof opts.ocrPreprocess === 'function') {
+    const prepared = await opts.ocrPreprocess({ canvas: render.canvas, width: render.w, height: render.h, page });
+    if (prepared) processedCanvas = prepared;
+  }
+  const image = () => render.isNode && processedCanvas === render.canvas
+    ? render.canvas.toBuffer('image/png') : processedCanvas;
   const worker = poolWorker || (await getWorker(langs, opts.ocrRuntime));
   const recognize = async () => {
     const { data } = await worker.recognize(image(), rect ? { rectangle: rect } : {}, { text: true, blocks: true });

@@ -168,6 +168,7 @@ export interface Keyframe {
   blob: Blob | null;
   sceneId?: number;
   reason?: 'scene' | 'context';
+  saliency?: number;
 }
 
 export interface VideoScene {
@@ -408,6 +409,8 @@ export interface ParseOpts {
   ocrConfidenceRetry?: boolean;
   /** Mean OCR confidence threshold that triggers the alternate pass. */
   ocrConfidenceThreshold?: number;
+  /** Optional page image preprocessing hook for deskew, denoise, threshold or dewarp. */
+  ocrPreprocess?: (input: { canvas: unknown; width: number; height: number; page: unknown }) => unknown | Promise<unknown>;
   /** Also OCR and reconstruct supported embedded raster images. Default true. */
   ocrImages?: boolean;
   /** Optional browser Tesseract module and asset URLs. */
@@ -542,6 +545,7 @@ export interface SelectedKeyframe {
   timestampUs: number;
   diffScore: number;
   isSceneCut: boolean;
+  saliency?: number;
 }
 export function selectKeyframes(
   timestampsUs: number[],

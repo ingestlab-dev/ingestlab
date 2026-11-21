@@ -30,6 +30,7 @@ assert.equal(new Set(selected.map((f) => f.sceneId)).size, boundaries.length);
 assert.equal(scenesRepresented, boundaries.length);
 assert.equal(sceneCoverage, 1);
 assert.ok(maxFrameGapUs > 0);
+assert.ok(selected.every((frame) => frame.saliency !== undefined));
 assert.ok(selected.length >= 57);
 const times = [0, ...selected.map((f) => f.timestampUs), durationUs];
 assert.ok(times.every((t, i) => i === 0 || (t > times[i - 1] && t - times[i - 1] <= 6500000)));
