@@ -3,7 +3,7 @@ import { cluster1d, mean } from './util.js';
 import { detectRuledTables, detectSemiRuledTables, findBorderlessTable, BULLET_RE, ORDERED_RE } from './tables.js';
 import { extractFormBlocks, looksLikeFormPage } from './forms.js';
 import { extractLookupTables } from './lookupTables.js';
-import { isMathLine, toMathText, isMathFont, recoverDisplayFraction } from './math.js';
+import { isMathLine, toMathText, normalizeMath, isMathFont, recoverDisplayFraction } from './math.js';
 
 function structHeadingFor(pageCtx, line) {
   const internals = pageCtx.internals;
@@ -821,9 +821,9 @@ export function buildPageLayout(pageCtx, scale, opts = {}) {
     }
     for (const seg of seq) {
       if (seg.fraction) {
-        blocks.push({ type: 'math', text: seg.fraction, prov: 'texMath' });
+        blocks.push({ type: 'math', text: normalizeMath(seg.fraction), prov: 'texMath' });
       } else if (seg.math) {
-        blocks.push({ type: 'math', text: buildMathText(seg.lines), prov: seg.lines.some((l) => l.words.some((w) => isMathFont(w.font))) ? 'texMath' : 'geometricFallback' });
+        blocks.push({ type: 'math', text: normalizeMath(buildMathText(seg.lines)), prov: seg.lines.some((l) => l.words.some((w) => isMathFont(w.font))) ? 'texMath' : 'geometricFallback' });
       } else {
         emitParagraphs(seg.lines);
       }
