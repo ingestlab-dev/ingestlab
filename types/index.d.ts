@@ -266,6 +266,13 @@ export interface DocumentGraph {
   relations: DocumentGraphRelation[];
 }
 
+export function buildDocumentGraph(pages: Block[][], options?: {
+  pageData?: Record<string, unknown>[];
+  fingerprint?: string;
+}): DocumentGraph;
+export function addControlsToGraph(graph: DocumentGraph, controls: PdfControl[]): DocumentGraph;
+export function linkContainedElements(graph: DocumentGraph): DocumentGraph;
+
 export function rankRagChunks(chunks: RagChunk[], query: string, options?: {
   limit?: number;
 }): RagChunk[];
