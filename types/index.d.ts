@@ -216,6 +216,32 @@ export interface RagChunk {
   tableRowRange?: { start: number; end: number };
 }
 
+export interface DocumentGraphElement {
+  id: string;
+  type: string;
+  text: string;
+  page: number;
+  blockIndex: number;
+  order?: number;
+  rowIndex?: number;
+  columnIndex?: number;
+  parentId?: string;
+  confidence?: number;
+  provenance?: string;
+  bbox?: { x0: number; y0: number; x1: number; y1: number };
+  sources?: PdfSource[];
+  children?: string[];
+  kind?: string;
+  kind2?: string | null;
+}
+
+export interface DocumentGraph {
+  version: 1;
+  fingerprint?: string;
+  elements: DocumentGraphElement[];
+  pages: { page: number; width?: number; height?: number; elements: string[] }[];
+}
+
 export function rankRagChunks(chunks: RagChunk[], query: string, options?: {
   limit?: number;
 }): RagChunk[];
@@ -390,6 +416,7 @@ export interface ParseResult {
   /** Detected vector figure regions; heuristic metadata, not a pixel-preservation guarantee. */
   figures: DetectedFigure[];
   pages: Block[][];
+  documentGraph: DocumentGraph;
   /** Original PDF visual regions and optional full-page renders. */
   assets: PdfAsset[];
   imageMode: 'refs' | 'base64' | 'none';

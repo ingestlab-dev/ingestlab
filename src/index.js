@@ -10,7 +10,9 @@ import { sniffKind } from './kind.js';
 import { destroyOcrWorker, ocrPage, ocrPagesParallel, probeOcrLang, OCR_DEFAULT_LANGS } from './ocr.js';
 import { normalizeOcrLanguages, resolveOcrModels } from './ocrLanguages.js';
 import { pageOrderedBlocks, toRagBlocks, toRagChunks } from './rag.js';
+import { buildDocumentGraph } from './documentGraph.js';
 export { rankRagChunks } from './rag.js';
+export { buildDocumentGraph } from './documentGraph.js';
 export { OCR_LANGUAGE_CODES } from './ocrLanguages.js';
 
 export const VERSION = '1.1.3';
@@ -501,6 +503,7 @@ export class IngestLab {
     const markdownMs = performance.now() - tMd0;
 
     const figures = pageData.flatMap((d) => d.figures || []);
+    const documentGraph = buildDocumentGraph(pageBlocks, { pageData, fingerprint });
     const stats = {
       pages,
       words: pageData.reduce((s, d) => s + d.words.length, 0),
@@ -535,6 +538,7 @@ export class IngestLab {
       blocks,
       figures,
       pages: pageBlocks,
+      documentGraph,
       assets,
       stats,
       caps: this.caps,

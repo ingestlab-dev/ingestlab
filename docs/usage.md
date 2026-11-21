@@ -72,6 +72,7 @@ for the full result.
 | `ragChunks` | Retrieval passages with section headings and PDF source references when `markdownProfile: 'rag'` is set |
 | `richMarkdown` and `formHtml` | Optional output enabled by `semanticHtml: true`. HTML tables can carry `rowspan` and `colspan`. |
 | `assets` and `figures` | Exported images and detected figure metadata |
+| `documentGraph` | Typed page/block graph with stable IDs, reading order, bbox, confidence, provenance, and table-cell children |
 | `stats` | Counts for pages, tables, forms, OCR, and visual recovery |
 
 | Option | Behavior |
