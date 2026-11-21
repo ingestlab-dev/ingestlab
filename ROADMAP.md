@@ -17,7 +17,7 @@ every engine.
 | P2.1 | Layout | Improve multi-column, vertical text, sidebars and margin notes | Region graph and reading-order resolver | Reading-order edit score improves on stratified corpus | TODO |
 | P2.2 | Layout | Handle A3, nested regions, continued sections and repeated headers/footers | Page normalization and region nesting | No duplicated chrome, correct section continuity | TODO |
 | P2.3 | Layout | Add skew, dewarp, denoise and orientation routing | Scan preprocessing stages | OCR CER and table cell accuracy improve on scan/photo slices | TODO |
-| P3.1 | Visual semantics | Convert math text to clean LaTeX | Formula recognizer and Markdown renderer | Specialist recognizer contract is available; formula model and similarity scorer remain | IN PROGRESS |
+| P3.1 | Visual semantics | Convert math text to clean LaTeX | Formula recognizer and Markdown renderer | Native font remapping, fraction recovery, superscript/subscript and TeX normalization are implemented; specialist model scorer remains | IN PROGRESS |
 | P3.2 | Visual semantics | Add mhchem, SMILES/SVG and code-block recognizers | Chemical and code element adapters | Exact syntax validity plus element F1 | TODO |
 | P3.3 | Visual semantics | Reconstruct charts, circuits, diagrams and flowcharts | Table data, relation graph and Mermaid output | Built-in figure reconstruction plus specialist adapter contract; domain scorer remains | IN PROGRESS |
 | P4.1 | OCR | Add orientation, region crop, adaptive threshold and denoise passes | Confidence-aware OCR pipeline | OCR confidence is now exposed per page and in stats; preprocessing passes remain | IN PROGRESS |

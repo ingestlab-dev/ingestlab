@@ -222,9 +222,11 @@ export function pageOrderedBlocks(pages, withSources = false, { coalesce = true 
   const ordered = [];
   let pending = null;
   for (let i = 0; i < pages.length; i++) {
-    let blocks = withSources ? pages[i].map((block, blockIndex) => ({
+    let blocks = pages[i].map((block, blockIndex) => ({ block, blockIndex }))
+      .filter(({ block }) => !block._continuedDuplicate);
+    blocks = withSources ? blocks.map(({ block, blockIndex }) => ({
       ...block, sources: [{ page: i + 1, blockIndex, ...(block.bbox && { bbox: block.bbox }) }],
-    })) : pages[i];
+    })) : blocks.map(({ block }) => block);
     if (coalesce) blocks = coalesceParagraphs(blocks);
     if (pending && blocks[0]?.type === 'paragraph') {
       const head = blocks[0].text;

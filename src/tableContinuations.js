@@ -27,8 +27,8 @@ export function mergeContinuedTables(pages, options = {}) {
       candidate.rows = [...candidate.rows, ...body];
       candidate.continuedPages = [...(candidate.continuedPages || []), pageIndex + 1];
       candidate.continuedSources = [...(candidate.continuedSources || []), { page: pageIndex + 1 }];
-      const index = current.indexOf(table);
-      if (index >= 0) current.splice(index, 1);
+      table._continuedDuplicate = true;
+      table.continuedFromPage = pageIndex;
     }
   }
   return merged;

@@ -175,5 +175,16 @@ export function toMathText(line) {
   }
   const m = out.match(/\s*\((\d+(?:\.\d+)+)\)\s*$/);
   if (m) out = out.slice(0, m.index).trim() + ` \\tag{${m[1]}}`;
-  return out;
+  return normalizeMath(out);
+}
+
+export function normalizeMath(text) {
+  return String(text || '')
+    .replace(/[‐‑‒–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([=+\-−*/<>])\s*/g, ' $1 ')
+    .replace(/\s*([,;])\s*/g, '$1 ')
+    .replace(/\{\s*([^{}]+?)\s*\}/g, '{$1}')
+    .replace(/ +/g, ' ')
+    .trim();
 }

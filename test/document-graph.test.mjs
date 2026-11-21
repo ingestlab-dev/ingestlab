@@ -28,5 +28,6 @@ const stitched = mergeContinuedTables([
   [{ type: 'table', meta: { headerRows: 1 }, rows: [['Line', 'Value'], ['2', '200']] }],
 ]);
 assert.deepEqual(stitched[0][0].rows, [['Line', 'Value'], ['1', '100'], ['2', '200']]);
-assert.equal(stitched[1].length, 0);
+assert.equal(stitched[1].length, 1);
+assert.equal(stitched[1][0]._continuedDuplicate, true);
 console.log('Document graph provenance: OK');
