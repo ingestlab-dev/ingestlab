@@ -119,7 +119,11 @@ export async function ocrPagesParallel(doc, pageNumbers, pdfjs, opts = {}, hooks
         } catch {}
       }
     }
-    if (cached) { record(p, { words: cached.words, segments: cached.segments || { h: [], v: [] } }); continue; }
+    if (cached) {
+      const confidence = cached.confidence ?? (cached.words.reduce((sum, word) => sum + (word.confidence ?? 0.72), 0) / cached.words.length);
+      record(p, { words: cached.words, segments: cached.segments || { h: [], v: [] }, confidence });
+      continue;
+    }
     pending.push(p);
   }
   if (!pending.length) return results;

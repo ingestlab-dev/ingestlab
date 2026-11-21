@@ -200,5 +200,14 @@ export function selectStoryboard(samples, durationUs, options = {}) {
     }
     selected.sort((a, b) => a.timestampUs - b.timestampUs);
   }
-  return { selected, scenes: scenes.map(({ id, startUs, endUs, diffScore }) => ({ id, startUs, endUs, diffScore })) };
+  const sceneResults = scenes.map(({ id, startUs, endUs, diffScore }) => ({ id, startUs, endUs, diffScore }));
+  const represented = new Set(selected.map(({ sceneId }) => sceneId));
+  const gaps = [0, ...selected.map(({ timestampUs }) => timestampUs), durationUs];
+  return {
+    selected,
+    scenes: sceneResults,
+    scenesRepresented: represented.size,
+    sceneCoverage: sceneResults.length ? represented.size / sceneResults.length : 1,
+    maxFrameGapUs: Math.max(...gaps.slice(1).map((gap, index) => gap - gaps[index])),
+  };
 }

@@ -11,7 +11,11 @@ function elementType(block) {
   if (block.type === 'math') return 'formula';
   if (block.type === 'form_choice') return 'checkbox';
   if (block.type === 'field') return 'form_field';
-  if (block.type === 'image') return 'figure';
+  if (block.type === 'image') return block.rasterVisual?.kind === 'table' ? 'chart' : 'figure';
+  if (block.type === 'figure') {
+    if (block.kind === 'chart' || block.kind2 === 'chart') return 'chart';
+    if (block.kind === 'schematic' || block.kind === 'circuit' || block.kind === 'diagram') return 'diagram';
+  }
   if (block.type === 'form_line' || block.type === 'form_grid' || block.type === 'form_matrix' ||
       block.type === 'worksheet' || block.type === 'kv_panel' || block.type === 'form_section') return 'form_field';
   if (block.type === 'table') return 'table';
@@ -56,6 +60,24 @@ function cellElements(block, parentId, page, blockIndex) {
   }));
 }
 
+function tableSignature(element) {
+  return element.text.split('\n')[0].toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function sourceWords(block, pageData) {
+  if (!block.bbox || !pageData?.words?.length) return undefined;
+  const words = pageData.words.filter((word) => {
+    const x = (word.x0 + word.x1) / 2;
+    return x >= block.bbox.x0 && x <= block.bbox.x1 && word.y >= block.bbox.y0 && word.y <= block.bbox.y1;
+  });
+  return words.length ? words.map((word, index) => ({
+    index,
+    text: word.str,
+    confidence: word.confidence,
+    bbox: { x0: word.x0, y0: word.y - word.size, x1: word.x1, y1: word.y },
+  })) : undefined;
+}
+
 export function buildDocumentGraph(pages, options = {}) {
   const elements = [];
   const pageInfo = [];
@@ -80,8 +102,10 @@ export function buildDocumentGraph(pages, options = {}) {
         provenance: block.prov || (options.pageData?.[pageIndex]?.ocr ? 'ocr' : 'geometricFallback'),
         ...(block.bbox && { bbox: block.bbox }),
         sources: block.sources || [{ page: pageNumber, blockIndex }],
+        ...(sourceWords(block, options.pageData?.[pageIndex]) && { sourceWords: sourceWords(block, options.pageData?.[pageIndex]) }),
         ...(block.kind && { kind: block.kind }),
         ...(block.kind2 && { kind2: block.kind2 }),
+        ...(block.continuedPages && { continuedPages: block.continuedPages }),
         ...(block.reconstruction && { reconstruction: block.reconstruction }),
         ...(block.mermaid && { mermaid: block.mermaid }),
         ...(block.tableMd && { tableMd: block.tableMd }),
@@ -100,6 +124,13 @@ export function buildDocumentGraph(pages, options = {}) {
       }
     }
     pageInfo.push({ page: pageNumber, ...(options.pageData?.[pageIndex]?.width && { width: options.pageData[pageIndex].width }), ...(options.pageData?.[pageIndex]?.height && { height: options.pageData[pageIndex].height }), elements: pageElements });
+  }
+  const tables = elements.filter((element) => element.type === 'table');
+  for (let i = 1; i < tables.length; i++) {
+    const previous = tables[i - 1];
+    const current = tables[i];
+    if (current.page !== previous.page + 1 || tableSignature(current) !== tableSignature(previous)) continue;
+    relations.push({ from: previous.id, to: current.id, type: 'continued_table' });
   }
   return {
     version: 1,

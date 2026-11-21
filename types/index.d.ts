@@ -12,6 +12,7 @@ export interface Word {
   y: number;
   size: number;
   mono: boolean;
+  confidence?: number;
 }
 
 export interface HeadingBlock {
@@ -236,6 +237,7 @@ export interface DocumentGraphElement {
   provenance?: string;
   bbox?: { x0: number; y0: number; x1: number; y1: number };
   sources?: PdfSource[];
+  sourceWords?: { index: number; text: string; confidence?: number; bbox: { x0: number; y0: number; x1: number; y1: number } }[];
   children?: string[];
   kind?: string;
   kind2?: string | null;
@@ -244,6 +246,7 @@ export interface DocumentGraphElement {
   tableMd?: string | null;
   visualContent?: VisualContent;
   labels?: string[];
+  continuedPages?: number[];
 }
 
 export interface DocumentGraphRelation {
@@ -280,6 +283,7 @@ export interface IngestResult {
   sceneCuts?: number;
   scenes?: VideoScene[];
   scenesRepresented?: number;
+  sceneCoverage?: number;
   maxFrameGapUs?: number;
   optimized?: boolean;
   animatedPreserved?: boolean;
@@ -365,6 +369,8 @@ export interface ProgressEvent {
 export interface ParseOpts {
   /** Use rag to emit retrieval chunks with section headings and PDF source references. Default: faithful. */
   markdownProfile?: 'faithful' | 'rag';
+  /** Optional specialist recognizers for difficult regions. They run only when supplied. */
+  recognizers?: DocumentRecognizer[];
   /** Rebuild detected vector figures as standalone SVG assets in Node. */
   vectorFigures?: boolean;
   /** Omit raster region assets; independent of preservePages. */
@@ -406,6 +412,21 @@ export interface ParseOpts {
   docOpts?: Record<string, unknown>;
 }
 
+export interface DocumentRecognizer {
+  name?: string;
+  id?: string;
+  type?: string | string[];
+  types?: string | string[];
+  recognize(input: {
+    block: Block;
+    type: string;
+    page: number;
+    blockIndex: number;
+    pageData?: Record<string, unknown>;
+    document?: unknown;
+  }): Promise<Partial<Block> & { confidence?: number; prov?: string }> | Partial<Block> & { confidence?: number; prov?: string };
+}
+
 export interface VisualContent {
   nodes?: string[];
   links?: { a: number; b: number; directed: boolean }[];
@@ -438,6 +459,7 @@ export interface ParseResult {
   figures: DetectedFigure[];
   pages: Block[][];
   documentGraph: DocumentGraph;
+  recognizers: { applied: number; failures: { page: number; blockIndex: number; type: string; recognizer: string; error: string }[] };
   /** Original PDF visual regions and optional full-page renders. */
   assets: PdfAsset[];
   imageMode: 'refs' | 'base64' | 'none';
@@ -543,6 +565,7 @@ export function analyzeVideo(
   sceneCuts: number;
   scenes: VideoScene[];
   scenesRepresented: number;
+  sceneCoverage?: number;
   maxFrameGapUs: number;
   /** true when the WebCodecs attempt failed and an element bridge was used */
   decodeRetried: boolean;

@@ -188,7 +188,7 @@ export async function analyzeVideo(bytes, opts = {}) {
       });
       durationUs = Math.max(durationUs, lastSeen);
       if (!samples.length) throw new Error('ingestlab video: no frames could be analyzed');
-      const { selected, scenes } = selectStoryboard(samples, durationUs, o);
+      const { selected, scenes, scenesRepresented, maxFrameGapUs } = selectStoryboard(samples, durationUs, o);
       const wanted = new Map(selected.map((s, i) => [s.timestampUs + origin, i]));
       const blobs = new Array(selected.length);
       // Decode again to export the selected frames without retaining every sample.
@@ -203,7 +203,7 @@ export async function analyzeVideo(bytes, opts = {}) {
         });
       });
       if (wanted.size) throw new Error('ingestlab video: some selected frames could not be decoded');
-      return assemble(samples, durationUs, width, height, 'webcodecs-2d', false, selected, scenes, blobs);
+      return { ...assemble(samples, durationUs, width, height, 'webcodecs-2d', false, selected, scenes, blobs), scenesRepresented, maxFrameGapUs };
     } catch (e) {
       failure = e;
     }
@@ -226,14 +226,14 @@ export async function analyzeVideo(bytes, opts = {}) {
       samples.push({ timestampUs, frame: readFrame(video) });
       if (i % 12 === 0 || i + 1 === count) progress('video-analysis', i + 1, count);
     }
-    const { selected, scenes } = selectStoryboard(samples, durationUs, o);
+    const { selected, scenes, scenesRepresented, maxFrameGapUs } = selectStoryboard(samples, durationUs, o);
     const blobs = [];
     for (const s of selected) {
       await seekOnce(video, s.timestampUs / 1e6);
       blobs.push(await encodeFrame(video, width, height, o));
       progress('video-export', blobs.length, selected.length);
     }
-    return assemble(samples, durationUs, width, height, 'seek-2d', !!failure, selected, scenes, blobs);
+    return { ...assemble(samples, durationUs, width, height, 'seek-2d', !!failure, selected, scenes, blobs), scenesRepresented, maxFrameGapUs };
   });
 }
 

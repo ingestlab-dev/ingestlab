@@ -11,8 +11,11 @@ import { destroyOcrWorker, ocrPage, ocrPagesParallel, probeOcrLang, OCR_DEFAULT_
 import { normalizeOcrLanguages, resolveOcrModels } from './ocrLanguages.js';
 import { pageOrderedBlocks, toRagBlocks, toRagChunks } from './rag.js';
 import { buildDocumentGraph } from './documentGraph.js';
+import { applyRecognizers } from './recognizers.js';
+import { mergeContinuedTables } from './tableContinuations.js';
 export { rankRagChunks } from './rag.js';
 export { buildDocumentGraph } from './documentGraph.js';
+export { applyRecognizers } from './recognizers.js';
 export { OCR_LANGUAGE_CODES } from './ocrLanguages.js';
 
 export const VERSION = '1.1.3';
@@ -77,7 +80,7 @@ export class IngestLab {
     const t0 = performance.now();
 
     let cache = null;
-    if (o.cache && !o.debug && !o.docOpts && !o.ocrRuntime) {
+    if (o.cache && !o.debug && !o.docOpts && !o.ocrRuntime && !o.recognizers?.length) {
       // Include output options in the cache key. Apply image mode after reading the cached result.
       const cacheVersion =
         `${VERSION}:pdf:ocr${o.ocr ? 1 : 0}:${o.ocrLangs}:${o.vision ? 1 : 0}` +
@@ -243,7 +246,7 @@ export class IngestLab {
           if (r && r.words.length) {
             data.words = r.words;
             data.segments = r.segments;
-            data.ocrConfidence = r.confidence;
+              data.ocrConfidence = r.confidence;
             ocrPages++;
           } else if (r) {
             scannedUnread++;
@@ -476,6 +479,9 @@ export class IngestLab {
       pageBlocks.push(blocks);
       onProgress({ stage: 'layout', page: i + 1, pages });
     }
+    const stitchedPageBlocks = mergeContinuedTables(pageBlocks, { pageData });
+    pageBlocks.splice(0, pageBlocks.length, ...stitchedPageBlocks);
+    const recognizerResult = await applyRecognizers(pageBlocks, o.recognizers, { pageData, document: doc });
     const layoutMs = performance.now() - tLayout0;
 
     const imageOcr = o.ocr && o.ocrImages
@@ -545,6 +551,7 @@ export class IngestLab {
       figures,
       pages: pageBlocks,
       documentGraph,
+      recognizers: recognizerResult,
       assets,
       stats,
       caps: this.caps,

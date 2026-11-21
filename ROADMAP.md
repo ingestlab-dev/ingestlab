@@ -13,17 +13,17 @@ every engine.
 | P0.4 | Measurement | Reproduce a public OXR-like subset | Cross-engine report | Same pages, options, hardware class and scoring code. No SOTA claim before this gate | TODO |
 | P1.1 | Document graph | Keep stable typed elements, page/block order, bbox, confidence and provenance | `documentGraph` API | Stable IDs, valid source refs and deterministic replay | DONE |
 | P1.2 | Document graph | Expand element types | Typed graph for formula, chart, diagram, caption, footnote, code, chemistry, stamp and form controls | Classification coverage and valid parent/child relations | IN PROGRESS |
-| P1.3 | Document graph | Add source spans and cross-page relations | Character/word spans, links and continuation edges | Every emitted Markdown/RAG passage can cite graph elements | IN PROGRESS |
+| P1.3 | Document graph | Add source spans and cross-page relations | Character/word spans, links and continuation edges | Cross-page table continuation relations are implemented; character/word spans remain | IN PROGRESS |
 | P2.1 | Layout | Improve multi-column, vertical text, sidebars and margin notes | Region graph and reading-order resolver | Reading-order edit score improves on stratified corpus | TODO |
 | P2.2 | Layout | Handle A3, nested regions, continued sections and repeated headers/footers | Page normalization and region nesting | No duplicated chrome, correct section continuity | TODO |
 | P2.3 | Layout | Add skew, dewarp, denoise and orientation routing | Scan preprocessing stages | OCR CER and table cell accuracy improve on scan/photo slices | TODO |
-| P3.1 | Visual semantics | Convert math text to clean LaTeX | Formula recognizer and Markdown renderer | Formula similarity and delimiter validity | TODO |
+| P3.1 | Visual semantics | Convert math text to clean LaTeX | Formula recognizer and Markdown renderer | Specialist recognizer contract is available; formula model and similarity scorer remain | IN PROGRESS |
 | P3.2 | Visual semantics | Add mhchem, SMILES/SVG and code-block recognizers | Chemical and code element adapters | Exact syntax validity plus element F1 | TODO |
-| P3.3 | Visual semantics | Reconstruct charts, circuits, diagrams and flowcharts | Table data, relation graph and Mermaid output | Label recall, relation accuracy and no orphan labels | TODO |
+| P3.3 | Visual semantics | Reconstruct charts, circuits, diagrams and flowcharts | Table data, relation graph and Mermaid output | Built-in figure reconstruction plus specialist adapter contract; domain scorer remains | IN PROGRESS |
 | P4.1 | OCR | Add orientation, region crop, adaptive threshold and denoise passes | Confidence-aware OCR pipeline | OCR confidence is now exposed per page and in stats; preprocessing passes remain | IN PROGRESS |
-| P4.2 | OCR | Add language probing, retry policy and figure-label OCR | Adaptive language/model routing | Better low-confidence page recovery without re-OCRing good pages | TODO |
+| P4.2 | OCR | Add language probing, retry policy and figure-label OCR | Adaptive language/model routing | Language probing, rule-aware retry, cache reuse and figure-label OCR exist; confidence-triggered alternate pass remains | IN PROGRESS |
 | P4.3 | OCR | Add recognizer adapter interface | Local, browser and optional server adapters | Tesseract remains fallback and output schema stays stable | TODO |
-| P5.1 | Tables/forms | Merge continued, borderless, nested and partial-rule tables | Cell graph with rowspan/colspan and continuation links | TEDS, cell accuracy and cross-page merge accuracy | TODO |
+| P5.1 | Tables/forms | Merge continued, borderless, nested and partial-rule tables | Cell graph with rowspan/colspan and continuation links | Compatible continued tables are stitched before Markdown/RAG rendering; merge scoring remains | IN PROGRESS |
 | P5.2 | Tables/forms | Improve field, checkbox, input, signature and date association | Form graph and Markdown controls | Field/value and checkbox accuracy | TODO |
 | P5.3 | Tables/forms | Preserve faithful and RAG renderers from one graph | GFM, HTML and RAG serializers | Faithful text unchanged, RAG evidence complete | TODO |
 | P6.1 | Performance | Parse native text first and route only hard pages/regions to OCR | Confidence-based scheduler | Native latency target and zero unnecessary OCR pages | TODO |

@@ -24,9 +24,12 @@ const samples = Array.from({ length: 341 * 4 }, (_, i) => {
   return { timestampUs, frame: frames[scene % 4] };
 });
 samples[401] = { ...samples[401], frame: frames[0] }; // A short flash is not a scene.
-const { selected, scenes } = selectStoryboard(samples, durationUs);
+const { selected, scenes, scenesRepresented, sceneCoverage, maxFrameGapUs } = selectStoryboard(samples, durationUs);
 assert.deepEqual(scenes.map((s) => s.startUs), boundaries);
 assert.equal(new Set(selected.map((f) => f.sceneId)).size, boundaries.length);
+assert.equal(scenesRepresented, boundaries.length);
+assert.equal(sceneCoverage, 1);
+assert.ok(maxFrameGapUs > 0);
 assert.ok(selected.length >= 57);
 const times = [0, ...selected.map((f) => f.timestampUs), durationUs];
 assert.ok(times.every((t, i) => i === 0 || (t > times[i - 1] && t - times[i - 1] <= 6500000)));

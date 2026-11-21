@@ -73,6 +73,7 @@ for the full result.
 | `richMarkdown` and `formHtml` | Optional output enabled by `semanticHtml: true`. HTML tables can carry `rowspan` and `colspan`. |
 | `assets` and `figures` | Exported images and detected figure metadata |
 | `documentGraph` | Typed page/block graph with stable IDs, reading order, bbox, confidence, provenance, and table-cell children |
+| `recognizers` | Counts and failures from optional formula, chart, diagram, chemistry, handwriting or low-confidence OCR adapters |
 | `stats` | Counts for pages, tables, forms, OCR, and visual recovery |
 
 | Option | Behavior |
@@ -97,6 +98,12 @@ paragraphs and removes repeated print leaders inside table cells while keeping
 the page-level Markdown structure. The `rag` profile adds semantic form
 rewrites, section context, overlapping table windows, stable chunk IDs, and
 source metadata.
+
+Specialist models can be attached without changing the default lightweight
+path. Pass recognizers with a `types` filter and a `recognize()` function. A
+recognizer returns block fields such as `text`, `mermaid`, `tableMd`,
+`visualContent`, `confidence`, or `prov`. Results are recorded in the graph and
+rendered by the selected Markdown profile.
 
 When indexing faithful output with toRagChunks, each table passage keeps its
 exact Markdown in text and receives a small neighboring-row searchText window.
