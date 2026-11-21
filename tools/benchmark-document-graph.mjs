@@ -16,7 +16,7 @@ const durations = [];
 for (const name of names) {
   const started = performance.now();
   const result = await lab.parse(new Uint8Array(await readFile(join(root, name))), {
-    ocr: false, figures: false, vectorFigures: false, cache: false, dropHeadersFooters: false,
+    ocr: true, figures: false, vectorFigures: false, cache: false, dropHeadersFooters: false,
   });
   const elapsedMs = performance.now() - started;
   const graph = result.documentGraph;
