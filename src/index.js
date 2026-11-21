@@ -15,7 +15,13 @@ import { applyRecognizers } from './recognizers.js';
 import { mergeContinuedTables } from './tableContinuations.js';
 export { addControlEvidence, rankRagChunks } from './rag.js';
 export { addControlsToGraph, buildDocumentGraph, linkContainedElements } from './documentGraph.js';
-export { applyRecognizers } from './recognizers.js';
+export {
+  applyRecognizers,
+  createFormulaRecognizer,
+  createChemistryRecognizer,
+  createChartRecognizer,
+  createHandwritingRecognizer,
+} from './recognizers.js';
 export { OCR_LANGUAGE_CODES } from './ocrLanguages.js';
 
 export const VERSION = '1.1.3';

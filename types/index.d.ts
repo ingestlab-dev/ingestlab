@@ -444,6 +444,17 @@ export interface DocumentRecognizer {
   }): Promise<Partial<Block> & { confidence?: number; prov?: string }> | Partial<Block> & { confidence?: number; prov?: string };
 }
 
+/** Deterministic text-layer recognizer for formula blocks. */
+export function createFormulaRecognizer(): DocumentRecognizer;
+/** Text-layer chemistry recognizer that emits mhchem-compatible `\\ce{...}`. */
+export function createChemistryRecognizer(): DocumentRecognizer;
+/** Chart recognizer that promotes structured or label/value rows to Markdown and Mermaid. */
+export function createChartRecognizer(): DocumentRecognizer;
+/** Optional handwriting adapter. Without a model it reports low-confidence candidates. */
+export function createHandwritingRecognizer(options?: {
+  recognize?: DocumentRecognizer['recognize'];
+}): DocumentRecognizer;
+
 export interface VisualContent {
   nodes?: string[];
   links?: { a: number; b: number; directed: boolean }[];
