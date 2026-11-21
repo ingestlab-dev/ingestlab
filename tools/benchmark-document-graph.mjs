@@ -9,9 +9,16 @@ const names = (await readdir(root)).filter((name) => name.endsWith('.pdf')).sort
 const truthPath = join(root, 'ground-truth.json');
 const truth = JSON.parse(await readFile(truthPath, 'utf8').catch(() => '[]'));
 const normalize = (value) => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+const iou = (a, b) => {
+  if (!a || !b) return 0;
+  const area = (box) => Math.max(0, box.x1 - box.x0) * Math.max(0, box.y1 - box.y0);
+  const intersection = { x0: Math.max(a.x0, b.x0), y0: Math.max(a.y0, b.y0), x1: Math.min(a.x1, b.x1), y1: Math.min(a.y1, b.y1) };
+  const shared = area(intersection);
+  return shared / Math.max(1, area(a) + area(b) - shared);
+};
 const lab = await IngestLab.init();
 const files = [];
-const totals = { pages: 0, elements: 0, cells: 0, tables: 0, figures: 0, forms: 0, formulas: 0, invalidSources: 0, duplicateIds: 0, tableAnchors: 0, tableAnchorsFound: 0, skippedOcrAnchors: 0 };
+const totals = { pages: 0, elements: 0, cells: 0, tables: 0, figures: 0, forms: 0, formulas: 0, invalidSources: 0, duplicateIds: 0, tableAnchors: 0, tableAnchorsFound: 0, skippedOcrAnchors: 0, expectedCells: 0, foundCells: 0, bboxIouSum: 0, bboxChecks: 0, orderedFiles: 0, orderedFilesCorrect: 0 };
 const durations = [];
 
 for (const name of names) {
@@ -34,15 +41,37 @@ for (const name of names) {
   const expected = truth.find((entry) => entry.file === name);
   let tableAnchors = 0;
   let tableAnchorsFound = 0;
+  let expectedCells = 0;
+  let foundCells = 0;
+  let bboxIouSum = 0;
+  let bboxChecks = 0;
+  const expectedAnchors = [];
   for (const page of expected?.pages || []) for (const table of page.tables || []) {
     if (!useOcr && /scan|photo|skew/i.test(name)) {
       totals.skippedOcrAnchors++;
       continue;
     }
     tableAnchors++;
-    const found = graph.elements.some((element) => element.type === 'table' &&
-      normalize(element.text).includes(normalize(table.anchor)));
-    if (found) tableAnchorsFound++;
+    expectedAnchors.push(normalize(table.anchor));
+    const match = graph.elements.find((element) => element.type === 'table' && normalize(element.text).includes(normalize(table.anchor)));
+    if (!match) continue;
+    tableAnchorsFound++;
+    for (const cell of table.rows.flat()) {
+      if (!normalize(cell)) continue;
+      expectedCells++;
+      if (normalize(match.text).includes(normalize(cell))) foundCells++;
+    }
+    if (table.bbox && match.bbox) {
+      bboxIouSum += iou(table.bbox, match.bbox);
+      bboxChecks++;
+    }
+  }
+  const actualAnchors = graph.elements.filter((element) => element.type === 'table').map((element) => normalize(element.text));
+  const foundOrder = expectedAnchors.map((anchor) => actualAnchors.findIndex((text) => text.includes(anchor))).filter((index) => index >= 0);
+  const ordered = foundOrder.length === expectedAnchors.length && foundOrder.every((index, i) => i === 0 || index > foundOrder[i - 1]);
+  if (expectedAnchors.length) {
+    totals.orderedFiles++;
+    if (ordered) totals.orderedFilesCorrect++;
   }
   const counts = {};
   for (const element of graph.elements) (counts[element.type] ||= []).push(element);
@@ -59,6 +88,11 @@ for (const name of names) {
     duplicateIds: graph.elements.length - ids.size,
     tableAnchors,
     tableAnchorsFound,
+    expectedCells,
+    foundCells,
+    bboxIouSum,
+    bboxChecks,
+    ordered,
     elapsedMs: Math.round(elapsedMs * 10) / 10,
   };
   files.push(row);
@@ -75,6 +109,9 @@ const report = {
     sourceAccuracy: totals.elements ? 1 - totals.invalidSources / Math.max(1, totals.elements) : 1,
     chunkIdUniqueness: totals.duplicateIds === 0,
     tableAnchorRecall: totals.tableAnchors ? totals.tableAnchorsFound / totals.tableAnchors : 1,
+    tableCellRecall: totals.expectedCells ? totals.foundCells / totals.expectedCells : 1,
+    meanTableBboxIou: totals.bboxChecks ? totals.bboxIouSum / totals.bboxChecks : 1,
+    tableOrderAccuracy: totals.orderedFiles ? totals.orderedFilesCorrect / totals.orderedFiles : 1,
   },
   latency: { p95Ms: Math.round(p95 * 10) / 10 },
   results: files,

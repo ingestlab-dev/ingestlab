@@ -8,7 +8,7 @@ every engine.
 | ID | Phase | Task | Deliverable | Metric / acceptance gate | Status |
 | --- | --- | --- | --- | --- | --- |
 | P0.1 | Measurement | Build a stratified corpus for native PDFs, scans, phone photos, forms, tables, formulas, charts, diagrams, datasheets, papers, legal and financial reports | Versioned manifest, source hashes, ground truth | Every file has category, page count, expected elements and licensing record | IN PROGRESS |
-| P0.2 | Measurement | Add text, OCR, reading-order, table, formula, element, bbox and cross-page metrics | Reproducible evaluator | Native and OCR slices are separated, with scan anchors skipped unless `--ocr` is used; text CER, TEDS, formula and bbox scorers remain to be wired to labeled slices | IN PROGRESS |
+| P0.2 | Measurement | Add text, OCR, reading-order, table, formula, element, bbox and cross-page metrics | Reproducible evaluator | Native and OCR slices are separated; graph evaluator reports table cell recall, bbox IoU and table order. Text CER, TEDS, formula and full reading-order scorers remain | IN PROGRESS |
 | P0.3 | Measurement | Add RAG and runtime measurements | Benchmark report | Retrieval metrics exist; performance runner now reports page streaming, latency, pages/s, OCR confidence and heap usage | IN PROGRESS |
 | P0.4 | Measurement | Reproduce a public OXR-like subset | Cross-engine report | Same pages, options, hardware class and scoring code. No SOTA claim before this gate | TODO |
 | P1.1 | Document graph | Keep stable typed elements, page/block order, bbox, confidence and provenance | `documentGraph` API | Stable IDs, valid source refs and deterministic replay | DONE |
