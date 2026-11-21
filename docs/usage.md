@@ -113,6 +113,11 @@ recognizer returns block fields such as `text`, `mermaid`, `tableMd`,
 `visualContent`, `confidence`, or `prov`. Results are recorded in the graph and
 rendered by the selected Markdown profile.
 
+Built-in deterministic recognizers are available for text-layer formulas,
+chemical equations and chart data. `createHandwritingRecognizer()` marks likely
+handwriting or low-confidence regions for an external model and preserves the
+source when no model is configured.
+
 When indexing faithful output with toRagChunks, each table passage keeps its
 exact Markdown in text and receives a small neighboring-row searchText window.
 This lets a retriever match questions whose evidence spans adjacent form rows
@@ -166,6 +171,11 @@ OCR runs on image-only pages by default. Embedded-image OCR is also enabled
 and can recover labels and some diagrams or charts. Use `ocr: false` for
 text-layer extraction, or `ocrImages: false` to keep whole-page OCR while
 skipping the extra pass over embedded pictures.
+
+Full-page RGB scan images use a native-safe raster path in Node before OCR. If
+a Tesseract model cannot be downloaded or loaded, parsing records the failure
+in `stats.ocrFailed` and `stats.scannedUnread` instead of terminating the
+process. Supply local models with `ocrRuntime.langPath` for offline scans.
 
 ```js
 import { readFile } from 'node:fs/promises';

@@ -18,15 +18,26 @@ const iou = (a, b) => {
 };
 const lab = await IngestLab.init();
 const files = [];
-const totals = { pages: 0, elements: 0, cells: 0, tables: 0, figures: 0, forms: 0, formulas: 0, invalidSources: 0, duplicateIds: 0, tableAnchors: 0, tableAnchorsFound: 0, skippedOcrAnchors: 0, expectedCells: 0, foundCells: 0, bboxIouSum: 0, bboxChecks: 0, orderedFiles: 0, orderedFilesCorrect: 0 };
+const totals = { pages: 0, elements: 0, cells: 0, tables: 0, figures: 0, forms: 0, formulas: 0, invalidSources: 0, duplicateIds: 0, tableAnchors: 0, tableAnchorsFound: 0, skippedOcrAnchors: 0, expectedCells: 0, foundCells: 0, bboxIouSum: 0, bboxChecks: 0, orderedFiles: 0, orderedFilesCorrect: 0, failedFiles: 0 };
 const durations = [];
 
 for (const name of names) {
   const started = performance.now();
-  const result = await lab.parse(new Uint8Array(await readFile(join(root, name))), {
-    ocr: useOcr, figures: false, vectorFigures: false, cache: false, dropHeadersFooters: false,
-  });
+  let result;
+  let failure = null;
+  try {
+    result = await lab.parse(new Uint8Array(await readFile(join(root, name))), {
+      ocr: useOcr, figures: false, vectorFigures: false, cache: false, dropHeadersFooters: false,
+    });
+  } catch (error) {
+    failure = String(error?.message || error);
+    totals.failedFiles++;
+  }
   const elapsedMs = performance.now() - started;
+  if (!result) {
+    files.push({ file: name, failed: true, error: failure, elapsedMs: Math.round(elapsedMs * 10) / 10 });
+    continue;
+  }
   const graph = result.documentGraph;
   const ids = new Set();
   let invalidSources = 0;
@@ -94,6 +105,7 @@ for (const name of names) {
     bboxChecks,
     ordered,
     elapsedMs: Math.round(elapsedMs * 10) / 10,
+    failed: false,
   };
   files.push(row);
   durations.push(elapsedMs);
