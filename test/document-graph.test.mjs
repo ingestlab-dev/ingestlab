@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildDocumentGraph } from '../src/index.js';
+import { addControlsToGraph, buildDocumentGraph, linkContainedElements } from '../src/index.js';
 import { mergeContinuedTables } from '../src/tableContinuations.js';
 
 const graph = buildDocumentGraph([[
@@ -30,4 +30,12 @@ const stitched = mergeContinuedTables([
 assert.deepEqual(stitched[0][0].rows, [['Line', 'Value'], ['1', '100'], ['2', '200']]);
 assert.equal(stitched[1].length, 1);
 assert.equal(stitched[1][0]._continuedDuplicate, true);
+const controls = addControlsToGraph(buildDocumentGraph([[]]), [{ page: 1, type: 'checkbox', source: 'acroform', bbox: { x0: 1, y0: 2, x1: 9, y1: 10 }, label: 'Agree', checked: true }]);
+assert.equal(controls.elements.at(-1).type, 'checkbox');
+assert.equal(controls.elements.at(-1).control.checked, true);
+const nested = linkContainedElements(buildDocumentGraph([[
+  { type: 'figure', kind: 'diagram', bbox: { x0: 0, y0: 0, x1: 100, y1: 100 } },
+  { type: 'paragraph', text: 'label', bbox: { x0: 10, y0: 10, x1: 40, y1: 20 } },
+]]));
+assert.deepEqual(nested.relations.at(-1), { from: 'p1-b0', to: 'p1-b1', type: 'contains' });
 console.log('Document graph provenance: OK');

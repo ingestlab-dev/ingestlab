@@ -9,12 +9,12 @@ import { mergeRegions, createVisionEngine, iou, nms } from './vision.js';
 import { sniffKind } from './kind.js';
 import { destroyOcrWorker, ocrPage, ocrPagesParallel, probeOcrLang, OCR_DEFAULT_LANGS } from './ocr.js';
 import { normalizeOcrLanguages, resolveOcrModels } from './ocrLanguages.js';
-import { pageOrderedBlocks, toRagBlocks, toRagChunks } from './rag.js';
-import { buildDocumentGraph } from './documentGraph.js';
+import { addControlEvidence, pageOrderedBlocks, toRagBlocks, toRagChunks } from './rag.js';
+import { addControlsToGraph, buildDocumentGraph, linkContainedElements } from './documentGraph.js';
 import { applyRecognizers } from './recognizers.js';
 import { mergeContinuedTables } from './tableContinuations.js';
-export { rankRagChunks } from './rag.js';
-export { buildDocumentGraph } from './documentGraph.js';
+export { addControlEvidence, rankRagChunks } from './rag.js';
+export { addControlsToGraph, buildDocumentGraph, linkContainedElements } from './documentGraph.js';
 export { applyRecognizers } from './recognizers.js';
 export { OCR_LANGUAGE_CODES } from './ocrLanguages.js';
 
@@ -242,7 +242,8 @@ export class IngestLab {
         pendingOcr,
         this.pdfjs,
         { ocrLangs, ocrWorkers: o.ocrWorkers, ocrCacheDir: o.ocrCacheDir, docHash, ocrRoi: o.ocrRoi, precomputed,
-          ocrRuntime: o.ocrRuntime },
+          ocrRuntime: o.ocrRuntime, ocrConfidenceRetry: o.ocrConfidenceRetry,
+          ocrConfidenceThreshold: o.ocrConfidenceThreshold },
         { onProgress: (ev) => onProgress({ stage: 'ocr', page: ev.page, pages, ocrDone: ev.done, ocrTotal: ev.total }) }
       );
       if (pool) {
@@ -519,14 +520,14 @@ export class IngestLab {
     const blocks = pageBlocks.flat();
     const ragBlocks = o.markdownProfile === 'rag' ? toRagBlocks(pageBlocks) : null;
     const outputMarkdown = emitBlocks(ragBlocks ?? pageOrderedBlocks(pageBlocks)).trimEnd() + '\n';
-    const ragChunks = ragBlocks ? toRagChunks(ragBlocks) : null;
+    const ragChunks = ragBlocks ? addControlEvidence(toRagChunks(ragBlocks), controls) : null;
     const richMarkdown = o.semanticHtml
       ? emitBlocks(ragBlocks ?? blocks, semanticTable)
       : undefined;
     const markdownMs = performance.now() - tMd0;
 
     const figures = pageData.flatMap((d) => d.figures || []);
-    const documentGraph = buildDocumentGraph(pageBlocks, { pageData, fingerprint });
+    const documentGraph = linkContainedElements(addControlsToGraph(buildDocumentGraph(pageBlocks, { pageData, fingerprint }), controls));
     const stats = {
       pages,
       words: pageData.reduce((s, d) => s + d.words.length, 0),

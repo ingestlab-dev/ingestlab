@@ -132,7 +132,13 @@ export async function ocrPagesParallel(doc, pageNumbers, pdfjs, opts = {}, hooks
     const page = await doc.getPage(p);
     let res = null;
     try {
-      res = await ocrPage(page, pdfjs, { ocrLangs: langs, worker, ocrRect: opts.ocrRoi === false ? null : undefined });
+      res = await ocrPage(page, pdfjs, {
+        ocrLangs: langs,
+        worker,
+        ocrRect: opts.ocrRoi === false ? null : undefined,
+        ocrConfidenceRetry: opts.ocrConfidenceRetry,
+        ocrConfidenceThreshold: opts.ocrConfidenceThreshold,
+      });
     } catch (e) {
       console.warn('ingestlab: OCR failed for page ' + p + ':', String(e?.message || e).slice(0, 120));
     }

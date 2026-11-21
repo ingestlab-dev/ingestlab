@@ -140,3 +140,36 @@ export function buildDocumentGraph(pages, options = {}) {
     ...(options.fingerprint && { fingerprint: options.fingerprint }),
   };
 }
+
+export function addControlsToGraph(graph, controls = []) {
+  for (const control of controls) {
+    const id = `p${control.page}-control-${graph.elements.length}`;
+    graph.elements.push({
+      id,
+      type: control.type === 'checkbox' || control.type === 'radio' ? 'checkbox' : 'form_field',
+      text: control.label || control.name || '',
+      page: control.page,
+      blockIndex: -1,
+      order: graph.elements.length,
+      confidence: control.source === 'acroform' ? 0.98 : 0.82,
+      provenance: control.source || 'form-control',
+      bbox: control.bbox,
+      control: { name: control.name, label: control.label, value: control.value, checked: control.checked, exportValue: control.exportValue, required: control.required, readOnly: control.readOnly },
+    });
+    graph.pages[control.page - 1]?.elements.push(id);
+  }
+  return graph;
+}
+
+export function linkContainedElements(graph) {
+  const regions = graph.elements.filter((element) => ['figure', 'chart', 'diagram', 'table', 'form_field'].includes(element.type) && element.bbox);
+  for (const element of graph.elements) {
+    if (!element.bbox || regions.includes(element)) continue;
+    const owner = regions.find((region) => region.page === element.page &&
+      element.bbox.x0 >= region.bbox.x0 && element.bbox.y0 >= region.bbox.y0 &&
+      element.bbox.x1 <= region.bbox.x1 && element.bbox.y1 <= region.bbox.y1);
+    if (!owner) continue;
+    graph.relations.push({ from: owner.id, to: element.id, type: 'contains' });
+  }
+  return graph;
+}

@@ -363,3 +363,14 @@ export function toRagChunks(blocks, options = {}) {
   }
   return chunks;
 }
+
+export function addControlEvidence(chunks, controls = []) {
+  if (!controls.length) return chunks;
+  return chunks.map((chunk) => {
+    const page = chunk.sources?.[0]?.page;
+    const related = controls.filter((control) => control.page === page);
+    if (!related.length) return chunk;
+    const evidence = related.map((control) => [control.type, control.label, control.checked === undefined ? '' : control.checked ? 'checked' : 'unchecked'].filter(Boolean).join(' ')).join('\n');
+    return { ...chunk, searchText: `${chunk.searchText || chunk.text}\n${evidence}` };
+  });
+}

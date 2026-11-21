@@ -247,6 +247,7 @@ export interface DocumentGraphElement {
   visualContent?: VisualContent;
   labels?: string[];
   continuedPages?: number[];
+  control?: { name?: string | null; label: string; value?: string | string[] | boolean | null; checked?: boolean; exportValue?: string | null; required?: boolean; readOnly?: boolean };
 }
 
 export interface DocumentGraphRelation {
