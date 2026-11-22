@@ -358,5 +358,3 @@ standard font directory. The widget supports `ocr-src`, `ocr-worker-src`,
 See the runnable local playground in the [README](../README.md#playground)
 and the [benchmark](../BENCHMARK.md) for PDF examples.
 
-The implementation plan and measurement gates are tracked in the
-[document and media roadmap](../ROADMAP.md).

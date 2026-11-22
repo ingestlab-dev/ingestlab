@@ -50,10 +50,6 @@ to numbered rows when their positions and text support the link.
 See the [RAG usage guide](docs/usage.md#retrieval-and-question-answering)
 and [retrieval benchmark](BENCHMARK.md#retrieval-benchmark).
 
-The [roadmap](ROADMAP.md) tracks the PDF-to-Markdown, document graph, OCR,
-layout, visual-recognition, performance, and video-keyframe work with explicit
-acceptance metrics.
-
 Node.js support starts at 18 with the default `pdfjs-dist@4.8.x` peer. If you
 inject a newer PDF.js module, use the Node.js version required by that module
 and keep its worker and standard-font assets on the same version.
