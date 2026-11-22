@@ -38,4 +38,7 @@ const nested = linkContainedElements(buildDocumentGraph([[
   { type: 'paragraph', text: 'label', bbox: { x0: 10, y0: 10, x1: 40, y1: 20 } },
 ]]));
 assert.deepEqual(nested.relations.at(-1), { from: 'p1-b0', to: 'p1-b1', type: 'contains' });
+const worksheet = buildDocumentGraph([[{ type: 'worksheet', rows: [{ code: '1', label: 'Income', amount: '10' }] }]]);
+assert.equal(worksheet.elements[0].type, 'worksheet');
+assert.equal(worksheet.elements[0].children, undefined);
 console.log('Document graph provenance: OK');

@@ -32,6 +32,7 @@ function confidence(block, page) {
 
 function cellElements(block, parentId, page, blockIndex) {
   if (!Array.isArray(block.rows)) return [];
+  if (block.rows.some((row) => !Array.isArray(row))) return [];
   const rowCount = block.rows.length;
   const columnCount = Math.max(1, ...block.rows.map((row) => row.length));
   const rowHeight = block.bbox ? (block.bbox.y1 - block.bbox.y0) / Math.max(1, rowCount) : 0;
