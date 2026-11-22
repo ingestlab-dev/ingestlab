@@ -69,10 +69,15 @@ and figure pipeline.
 | `rag` | Contextual GFM Markdown plus `ragChunks` | Rewrites tagged forms semantically, groups related rows, carries section headings, and includes stable PDF page and row sources. |
 
 The 170-document corpus contains 1,038 pages, 1,286 detected tables, and
-34,841 valid source references with no failed files. On the 15-query natural
-language benchmark, both profiles reach 100% evidence coverage and 100%
-Recall@5. The 310-query synthetic table benchmark reaches 100% on every
-retrieval measure for both profiles. See the [full benchmark](BENCHMARK.md).
+34,841 valid source references with no failed files. The 310-query synthetic
+table benchmark reaches 100% on every retrieval measure for both profiles.
+The 15-query natural-language benchmark is tracked separately with its full
+per-query results in [BENCHMARK.md](BENCHMARK.md#retrieval-benchmark).
+
+The parser also exposes a typed `documentGraph`, built-in formula, chemistry
+and chart recognizers, optional handwriting hooks, page streaming, OCR
+confidence/retry metadata, cross-page table relations, and adaptive video
+scene coverage metadata.
 
 ### PDF in the Browser
 

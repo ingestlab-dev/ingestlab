@@ -235,17 +235,18 @@ were disabled for both runs.
 
 | Profile | Evidence coverage | Recall@1 | Recall@5 | MRR | Source accuracy@1 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `faithful` | 100.0% | 93.3% | 100.0% | 0.967 | 93.3% |
-| `rag` | 100.0% | 93.3% | 100.0% | 0.956 | 93.3% |
+| `faithful` | 86.7% | 86.7% | 86.7% | 0.867 | 86.7% |
+| `rag` | 86.7% | 60.0% | 80.0% | 0.692 | 60.0% |
 
 Evidence coverage counts queries with a complete passage anywhere in the
 index. Source accuracy checks the document and page of the top result.
 Both profiles use local table-context search text, safe abbreviation aliases,
 section-aware ranking, numeric-answer boosts, and stable source-derived chunk
 IDs. The faithful profile keeps the original Markdown passage as text;
-context is indexing metadata only. Duplicate fixtures can legitimately tie
-on identical evidence, so top-result source accuracy remains below evidence
-coverage for two queries.
+context is indexing metadata only. The natural benchmark exposes remaining
+gaps in cross-domain phrase recovery, especially when PDF text extraction
+breaks words or symbols. The synthetic table benchmark remains a separate
+structural regression suite.
 
 ```sh
 INGESTLAB_PDF_DIR=/path/to/pdf node tools/benchmark-rag.mjs
