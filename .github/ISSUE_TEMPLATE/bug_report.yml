@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible problem in IngestLab
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not upload private documents, credentials, tokens, or personal data.
+  - type: input
+    id: version
+    attributes:
+      label: IngestLab version
+      placeholder: "1.2.1"
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      placeholder: "Chrome 130, Node.js 22"
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input and options
+      description: Describe the document or media type without sharing private content.
+      placeholder: "Native PDF, scan, form, table, or MP4. Include relevant options."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide a minimal public fixture or code sample.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
