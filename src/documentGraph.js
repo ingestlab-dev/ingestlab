@@ -3,7 +3,9 @@ function blockText(block) {
   if (block.type === 'code') return block.lines.join('\n');
   if (block.type === 'list') return block.items.map((item) => item.text).join('\n');
   if (block.type === 'figure') return [block.sourceText, block.sourceCaption, block.caption, ...(block.extraLabels || [])].filter(Boolean).join('\n');
-  if (Array.isArray(block.rows)) return block.rows.map((row) => row.join(' | ')).join('\n');
+  if (Array.isArray(block.rows)) return block.rows.map((row) => Array.isArray(row)
+    ? row.join(' | ')
+    : Object.values(row || {}).filter((value) => value !== null && value !== undefined).join(' | ')).join('\n');
   return '';
 }
 
